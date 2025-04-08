@@ -1,0 +1,412 @@
+#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
+#import <CoreGraphics/CoreGraphics.h>
+#import <Carbon/Carbon.h> 
+#import <mach/mach.h>
+
+#import "shared.h"
+
+// Forward declarations
+extern
+bool bwm_resize_command(mach_port_t remote_port, 
+                        uint32_t wid, 
+                        CGFloat x, CGFloat y, 
+                        CGFloat width, CGFloat height, 
+                        int animate,
+                        bool shadow,
+                        bool trafficlights);
+
+extern NSArray<NSDictionary *> *FilteredWindowList(void);
+NSArray * LoadKeyBindings();
+extern bool LoadVisualSettings();
+
+// Types
+typedef NS_ENUM(NSInteger, TilingMode) {
+    TilingModeHorizontal,
+    TilingModeVertical,
+    TilingModeMasterStack
+};
+
+// Globals
+TilingMode gCurrentTilingMode = TilingModeHorizontal;
+CFMachPortRef gEventTap = NULL;
+CFRunLoopSourceRef gRunLoopSource = NULL;
+NSArray<NSValue *> *gKeyBindings = nil;
+int gConnection = 0;
+CGFloat gWindowGap = 50.0; // <<< ADDED: Default window gap
+bool gDisableShadows = true;
+bool gTrafficLights = false;
+
+static const CGFloat kMasterPaneRatio = 0.6;
+
+NSDictionary<NSString *, NSNumber *> *GetKeycodeMap() {
+    static NSDictionary<NSString *, NSNumber *> *map = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        map = @{
+            @"a": @(kVK_ANSI_A), @"b": @(kVK_ANSI_B), @"c": @(kVK_ANSI_C),
+            @"d": @(kVK_ANSI_D), @"e": @(kVK_ANSI_E), @"f": @(kVK_ANSI_F),
+            @"g": @(kVK_ANSI_G), @"h": @(kVK_ANSI_H), @"i": @(kVK_ANSI_I),
+            @"j": @(kVK_ANSI_J), @"k": @(kVK_ANSI_K), @"l": @(kVK_ANSI_L),
+            @"m": @(kVK_ANSI_M), @"n": @(kVK_ANSI_N), @"o": @(kVK_ANSI_O),
+            @"p": @(kVK_ANSI_P), @"q": @(kVK_ANSI_Q), @"r": @(kVK_ANSI_R),
+            @"s": @(kVK_ANSI_S), @"t": @(kVK_ANSI_T), @"u": @(kVK_ANSI_U),
+            @"v": @(kVK_ANSI_V), @"w": @(kVK_ANSI_W), @"x": @(kVK_ANSI_X),
+            @"y": @(kVK_ANSI_Y), @"z": @(kVK_ANSI_Z),
+            @"0": @(kVK_ANSI_0), @"1": @(kVK_ANSI_1), @"2": @(kVK_ANSI_2),
+            @"3": @(kVK_ANSI_3), @"4": @(kVK_ANSI_4), @"5": @(kVK_ANSI_5),
+            @"6": @(kVK_ANSI_6), @"7": @(kVK_ANSI_7), @"8": @(kVK_ANSI_8),
+            @"9": @(kVK_ANSI_9),
+            @"`": @(kVK_ANSI_Grave), @"-": @(kVK_ANSI_Minus), @"=": @(kVK_ANSI_Equal),
+            @"[": @(kVK_ANSI_LeftBracket), @"]": @(kVK_ANSI_RightBracket),
+            @"\\": @(kVK_ANSI_Backslash), @";": @(kVK_ANSI_Semicolon),
+            @"'": @(kVK_ANSI_Quote), @",": @(kVK_ANSI_Comma), @".": @(kVK_ANSI_Period),
+            @"/": @(kVK_ANSI_Slash),
+            // Add other keys if needed (e.g., Space, Tab, Enter)
+            @"space": @(kVK_Space),
+            @"tab": @(kVK_Tab),
+            @"enter": @(kVK_Return), // Or kVK_ANSI_KeypadEnter
+            @"escape": @(kVK_Escape),
+        };
+    });
+    return map;
+}
+
+int ApplyTiling() {
+    @autoreleasepool {
+        NSArray<NSDictionary *> *tileableWindows = FilteredWindowList();
+        CFIndex tileableWindowCount = [tileableWindows count];
+        if (tileableWindowCount == 0) {
+            return 0;
+        }
+
+        // Screen selection logic (remains the same)
+        NSScreen *targetScreen = nil;
+        targetScreen = [NSScreen mainScreen];
+    
+
+        if (!targetScreen) {
+            NSLog(@"[!] Error: Could not get target screen information.");
+            return 1;
+        }
+
+        // --- Apply OUTER gap ---
+        NSRect screenFrame = NSInsetRect([targetScreen visibleFrame], gWindowGap, gWindowGap);
+
+        CGFloat totalWidth = screenFrame.size.width;
+        CGFloat totalHeight = screenFrame.size.height;
+        CGFloat startX = screenFrame.origin.x;
+        CGFloat startY = screenFrame.origin.y;
+
+        // Ensure dimensions are not negative after applying the outer gap
+        totalWidth = MAX(0, totalWidth);
+        totalHeight = MAX(0, totalHeight);
+ 
+        for (CFIndex i = 0; i < tileableWindowCount; ++i) {
+            NSDictionary *tileInfo = tileableWindows[i];
+            pid_t pid = [tileInfo[@"pid"] intValue];
+            uint32_t window_number = [tileInfo[@"wid"] unsignedIntValue];
+
+            // Mach port lookup logic (remains the same)
+            NSString *expectedPortName = [NSString stringWithFormat:@"com.bwmport.%d", pid];
+            mach_port_t nativePort = MACH_PORT_NULL;
+            NSPort *remoteServicePort = [[NSMachBootstrapServer sharedInstance] portForName:expectedPortName];
+
+            if (remoteServicePort && [remoteServicePort isKindOfClass:[NSMachPort class]]) {
+                nativePort = [(NSMachPort *)remoteServicePort machPort];
+            }
+
+            if (nativePort == MACH_PORT_NULL || nativePort == MACH_PORT_DEAD) {
+                NSLog(@"[!] Warning: Could not find or Mach port for PID %@ (WID %u) is invalid/dead using name '%@'. Skipping.", @(pid), window_number, expectedPortName);
+                continue;
+            }
+
+            CGFloat currentX = startX;
+            CGFloat currentY = startY;
+            CGFloat currentWidth = totalWidth;
+            CGFloat currentHeight = totalHeight;
+
+            // Calculate total internal gap space needed
+            // For N windows, there are N-1 gaps between them.
+            CGFloat totalHorizontalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
+            CGFloat totalVerticalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
+
+
+            switch (gCurrentTilingMode) {
+                case TilingModeVertical: {
+                    currentWidth = totalWidth; // Each window takes the full width (minus outer gaps)
+                    // Calculate height considering internal vertical gaps
+                    CGFloat availableHeight = totalHeight - totalVerticalGap;
+                    currentHeight = (tileableWindowCount > 0) ? (availableHeight / tileableWindowCount) : 0;
+                    // Calculate Y position considering previous windows and gaps
+                    currentY = startY + (i * (currentHeight + gWindowGap));
+                    break;
+                }
+
+                case TilingModeMasterStack: {
+                    if (tileableWindowCount == 1) {
+                        // No gaps needed, takes full available frame
+                        currentX = startX;
+                        currentY = startY;
+                        currentWidth = totalWidth;
+                        currentHeight = totalHeight;
+                    } else {
+                        // Calculate space needed for the gap between master and stack
+                        CGFloat masterStackGap = gWindowGap;
+                        CGFloat effectiveWidth = totalWidth - masterStackGap; // Width available for master + stack panes
+
+                        CGFloat masterWidth = effectiveWidth * kMasterPaneRatio;
+                        CGFloat stackWidth = effectiveWidth - masterWidth;
+
+                        CFIndex stackWindowCount = tileableWindowCount - 1;
+                        CGFloat totalStackInternalGap = (stackWindowCount > 1) ? (stackWindowCount - 1) * gWindowGap : 0;
+                        CGFloat availableStackHeight = totalHeight - totalStackInternalGap;
+                        CGFloat stackHeight = (stackWindowCount > 0) ? (availableStackHeight / stackWindowCount) : 0; // Avoid division by zero
+
+                        if (i == 0) { // Master window
+                            currentX = startX;
+                            currentY = startY;
+                            currentWidth = masterWidth;
+                            currentHeight = totalHeight; // Master takes full height
+                        } else { // Stack windows
+                            CFIndex stackIndex = i - 1;
+                            currentX = startX + masterWidth + masterStackGap; // Position after master and the gap
+                            currentY = startY + (stackIndex * (stackHeight + gWindowGap)); // Position considering stack gaps
+                            currentWidth = stackWidth;
+                            currentHeight = stackHeight;
+                        }
+                    }
+                    break;
+                }
+
+                case TilingModeHorizontal:
+                default: {
+                    currentHeight = totalHeight; // Each window takes the full height (minus outer gaps)
+                    // Calculate width considering internal horizontal gaps
+                    CGFloat availableWidth = totalWidth - totalHorizontalGap;
+                    currentWidth = (tileableWindowCount > 0) ? (availableWidth / tileableWindowCount) : 0;
+                    // Calculate X position considering previous windows and gaps
+                    currentX = startX + (i * (currentWidth + gWindowGap));
+                    break;
+                }
+            }
+
+            // Ensure calculated dimensions are not negative
+            currentWidth = MAX(0, currentWidth);
+            currentHeight = MAX(0, currentHeight);
+
+            // Send the resize command
+            bwm_resize_command(
+                nativePort, 
+                window_number, 
+                currentX, currentY, 
+                currentWidth, currentHeight, 
+                YES, 
+                gDisableShadows,
+                gTrafficLights);
+        }
+    }
+    return 0;
+}
+
+CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
+    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        NSLog(@"[!] Event Tap Disabled (type %d). Re-enabling...", type);
+        if (gEventTap != NULL) {
+            CGEventTapEnable(gEventTap, true);
+            NSLog(@"[+] Event Tap Re-enabled.");
+        }
+        return event; // Pass the event along
+    }
+
+    // We are only interested in key down events for triggering actions
+    if (type != kCGEventKeyDown) {
+        return event; // Pass the event along
+    }
+
+    CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+    // Get flags *without* device-dependent bits, which can vary (like caps lock state)
+    CGEventFlags flags = CGEventGetFlags(event) & NSDeviceIndependentModifierFlagsMask;
+
+    bool consumeEvent = false;
+
+    NSLog(@"kb val %@", gKeyBindings);
+
+    for (NSValue *bindingValue in gKeyBindings) {
+        KeyBinding binding;
+        [bindingValue getValue:&binding];
+
+        if (keyCode == binding.keyCode) {
+            if ((flags & binding.requiredFlags) == binding.requiredFlags) {
+                NSLog(@"[+] Matched binding for action: %@", binding.action);
+                TilingMode targetMode = gCurrentTilingMode; // Default to current
+                bool modeChanged = false;
+
+                // Determine action based on the binding's action string
+                if ([binding.action isEqualToString:@"set_horizontal"]) {
+                    if (gCurrentTilingMode != TilingModeHorizontal) {
+                        targetMode = TilingModeHorizontal;
+                        modeChanged = true;
+                    }
+                } else if ([binding.action isEqualToString:@"set_vertical"]) {
+                    if (gCurrentTilingMode != TilingModeVertical) {
+                        targetMode = TilingModeVertical;
+                        modeChanged = true;
+                    }
+                } else if ([binding.action isEqualToString:@"set_master_stack"]) {
+                    if (gCurrentTilingMode != TilingModeMasterStack) {
+                        targetMode = TilingModeMasterStack;
+                        modeChanged = true;
+                    }
+                } else {
+                    NSLog(@"Warning: executing with sh. dangerous!");
+
+                    NSString *command = binding.action;
+                    if (command.length > 0) {
+                        NSTask *task = [[NSTask alloc] init];
+                        [task setLaunchPath:@"/bin/sh"];
+                        [task setArguments:@[@"-c", command]];
+
+                        @try {
+                            [task launch];
+                        } @catch (NSException *exception) {
+                            NSLog(@"Failed to execute command: %@", exception);
+                        }
+                    } else {
+                        NSLog(@"Empty command, nothing to execute.");
+                    }
+                }
+
+
+                if(modeChanged) {
+                    // Dispatch the tiling action to the main thread
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        gCurrentTilingMode = targetMode;
+                        ApplyTiling();
+                    });
+                    consumeEvent = true; // We handled this event
+                    break; // Stop checking other bindings
+                } else {
+                    NSLog(@"[+] Binding matched, but mode (%ld) is already active. No action taken.", (long)gCurrentTilingMode);
+                    // Decide if you still want to consume the event even if no action was taken
+                    // consumeEvent = true;
+                    // break;
+                }
+            }
+        }
+    }
+
+    // Return NULL to consume the event (prevent it from reaching other apps),
+    // or return 'event' to let it pass through.
+    return consumeEvent ? NULL : event;
+}
+
+bool SetupEventTap() { 
+    // Define which events we want to tap (only key down needed for bindings)
+    // Add kCGEventFlagsChanged if you need to react to modifier key presses alone.
+    CGEventMask eventMask = CGEventMaskBit(kCGEventKeyDown); // | CGEventMaskBit(kCGEventFlagsChanged);
+
+    // Create the event tap
+    gEventTap = CGEventTapCreate(kCGHIDEventTap,           // Tap HID system events
+                                 kCGHeadInsertEventTap,    // Insert before other taps
+                                 kCGEventTapOptionDefault, // Default behavior (listen-only is kCGEventTapOptionListenOnly)
+                                 eventMask,                // Mask of events to tap
+                                 EventTapCallback,         // Callback function
+                                 NULL);                    // User info pointer (not used here)
+
+    if (!gEventTap) {
+        NSLog(@"[!] FATAL: Failed to create event tap. Check permissions and system integrity.");
+        // This could be due to permissions issues not caught by AXIsProcessTrusted,
+        // or other system-level problems.
+        return false;
+    }
+
+    // Create a run loop source for the event tap
+    gRunLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, gEventTap, 0);
+    if (!gRunLoopSource) {
+        NSLog(@"[!] FATAL: Failed to create run loop source for event tap.");
+        CFRelease(gEventTap);
+        gEventTap = NULL;
+        return false;
+    }
+
+    // Add the source to the current run loop (main thread's run loop)
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), gRunLoopSource, kCFRunLoopCommonModes);
+
+    // Enable the event tap
+    CGEventTapEnable(gEventTap, true);
+    NSLog(@"[+] Event Tap enabled successfully.");
+
+    return true;
+}
+
+// --- Main Application Logic ---
+
+extern int SLSMainConnectionID(void);
+
+__attribute__((constructor))
+static int setup() {
+    @autoreleasepool {
+            
+        gConnection = SLSMainConnectionID();
+        NSProcessInfo *processInfo = [NSProcessInfo processInfo];
+        if ([[processInfo processName] isEqual:@"Dock"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSLog(@"[+] Application Starting...");
+
+                LoadVisualSettings();
+                // Load keybindings from JSON configuration file
+                gKeyBindings = LoadKeyBindings();
+
+                // Setup the event tap to listen for key presses
+                if (!SetupEventTap()) {
+                    NSLog(@"[!] Failed to setup event tap. Application will exit.");
+                    //return; // Exit if event tap setup fails (???)
+                }
+
+                __block dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+                if (timer) {
+                    NSLog(@"[+] Starting periodic re-tiling timer.");
+                    dispatch_source_set_timer(timer,
+                                            dispatch_time(DISPATCH_TIME_NOW, 0.01 * NSEC_PER_SEC), // Start after 5 seconds
+                                            0.025 * NSEC_PER_SEC, // Repeat every 10 seconds
+                                            1.0 * NSEC_PER_SEC); // Leeway of 1 second
+                    dispatch_source_set_event_handler(timer, ^{
+                        ApplyTiling();
+                    });
+                    dispatch_resume(timer);
+                } else {
+                    NSLog(@"[!] Warning: Failed to create periodic timer.");
+                } 
+
+                // Start the main run loop to keep the application alive and process events
+                NSLog(@"[+] Starting main run loop...");
+                // [[NSRunLoop mainRunLoop] run]; // This blocks until the run loop is stopped
+
+                // // --- Cleanup (Code here might not be reached if run loop runs indefinitely) ---
+                // NSLog(@"[+] Run loop exited. Cleaning up...");
+
+                // if (timer) {
+                //     dispatch_source_cancel(timer);
+                //     NSLog(@"[+] Periodic timer cancelled.");
+                // }
+                // if (gRunLoopSource) {
+                //     CFRunLoopRemoveSource(CFRunLoopGetCurrent(), gRunLoopSource, kCFRunLoopCommonModes);
+                //     CFRelease(gRunLoopSource);
+                //     NSLog(@"[+] Run loop source removed and released.");
+                // }
+                // if (gEventTap) {
+                //     CGEventTapEnable(gEventTap, false);
+                //     CFRelease(gEventTap);
+                //     NSLog(@"[+] Event Tap disabled and released.");
+                // }
+
+                // // Release the global keybindings array
+                // gKeyBindings = nil;
+
+                // NSLog(@"[+] Application cleanup finished. Exiting.");
+            });
+        }
+    }
+    return 0;
+}
