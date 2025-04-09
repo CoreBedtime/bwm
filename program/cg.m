@@ -1,4 +1,5 @@
 #include <ColorSync/ColorSync.h> /// ??? what
+#include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <Foundation/Foundation.h>
 
@@ -42,14 +43,12 @@ static bool IsValidWindow(CFTypeRef iterator) {
 extern
 int gConnection;
 
-NSArray<NSDictionary *> *FilteredWindowList(void) {
+NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce) {
     NSMutableArray *tileableWindows = [NSMutableArray array];
     uint64_t set_tags = 1;
     uint64_t clear_tags = 0;
 
-    uint64_t sid = SLSGetActiveSpace(gConnection);
-
-    CFArrayRef space_list_ref = CFNumberArrayMake(&sid,
+    CFArrayRef space_list_ref = CFNumberArrayMake(&current_sapce,
                                                    sizeof(uint64_t),
                                                    1,
                                                    kCFNumberSInt64Type);

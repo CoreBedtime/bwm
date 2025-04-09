@@ -1,3 +1,4 @@
+#include <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -16,7 +17,7 @@ bool bwm_resize_command(mach_port_t remote_port,
                         bool shadow,
                         bool trafficlights);
 
-extern NSArray<NSDictionary *> *FilteredWindowList(void);
+extern NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce);
 NSArray * LoadKeyBindings();
 extern bool LoadVisualSettings();
 
@@ -74,136 +75,129 @@ NSDictionary<NSString *, NSNumber *> *GetKeycodeMap() {
 
 int ApplyTiling() {
     @autoreleasepool {
-        NSArray<NSDictionary *> *tileableWindows = FilteredWindowList();
-        CFIndex tileableWindowCount = [tileableWindows count];
-        if (tileableWindowCount == 0) {
-            return 0;
-        }
+        NSArray<NSScreen *> *allScreens = [NSScreen screens];
 
-        // Screen selection logic (remains the same)
-        NSScreen *targetScreen = nil;
-        targetScreen = [NSScreen mainScreen];
-    
-
-        if (!targetScreen) {
-            NSLog(@"[!] Error: Could not get target screen information.");
+        if (!allScreens || [allScreens count] == 0) {
+            NSLog(@"[!] Error: Could not get screen information or no screens found.");
             return 1;
         }
 
-        // --- Apply OUTER gap ---
-        NSRect screenFrame = NSInsetRect([targetScreen visibleFrame], gWindowGap, gWindowGap);
+        for (NSScreen *screen in allScreens) {
+            CGPoint pointOnScreen = screen.visibleFrame.origin;
+            NSLog(@"[+] Processing screen: %@ (using point: %@)", [screen localizedName] ?: @"Unknown Screen", NSStringFromPoint(pointOnScreen));
 
-        CGFloat totalWidth = screenFrame.size.width;
-        CGFloat totalHeight = screenFrame.size.height;
-        CGFloat startX = screenFrame.origin.x;
-        CGFloat startY = screenFrame.origin.y;
+            NSArray<NSDictionary *> *tileableWindows = FilteredWindowList((unsigned long long)[screen _currentSpace]);
 
-        // Ensure dimensions are not negative after applying the outer gap
-        totalWidth = MAX(0, totalWidth);
-        totalHeight = MAX(0, totalHeight);
- 
-        for (CFIndex i = 0; i < tileableWindowCount; ++i) {
-            NSDictionary *tileInfo = tileableWindows[i];
-            pid_t pid = [tileInfo[@"pid"] intValue];
-            uint32_t window_number = [tileInfo[@"wid"] unsignedIntValue];
-
-            // Mach port lookup logic (remains the same)
-            NSString *expectedPortName = [NSString stringWithFormat:@"com.bwmport.%d", pid];
-            mach_port_t nativePort = MACH_PORT_NULL;
-            NSPort *remoteServicePort = [[NSMachBootstrapServer sharedInstance] portForName:expectedPortName];
-
-            if (remoteServicePort && [remoteServicePort isKindOfClass:[NSMachPort class]]) {
-                nativePort = [(NSMachPort *)remoteServicePort machPort];
-            }
-
-            if (nativePort == MACH_PORT_NULL || nativePort == MACH_PORT_DEAD) {
-                NSLog(@"[!] Warning: Could not find or Mach port for PID %@ (WID %u) is invalid/dead using name '%@'. Skipping.", @(pid), window_number, expectedPortName);
+            if (!tileableWindows) {
+                NSLog(@"[!] Warning: FilteredWindowListAtPoint returned nil for screen %@. Skipping.", [screen localizedName] ?: @"Unknown Screen");
                 continue;
             }
 
-            CGFloat currentX = startX;
-            CGFloat currentY = startY;
-            CGFloat currentWidth = totalWidth;
-            CGFloat currentHeight = totalHeight;
-
-            // Calculate total internal gap space needed
-            // For N windows, there are N-1 gaps between them.
-            CGFloat totalHorizontalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
-            CGFloat totalVerticalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
-
-
-            switch (gCurrentTilingMode) {
-                case TilingModeVertical: {
-                    currentWidth = totalWidth; // Each window takes the full width (minus outer gaps)
-                    // Calculate height considering internal vertical gaps
-                    CGFloat availableHeight = totalHeight - totalVerticalGap;
-                    currentHeight = (tileableWindowCount > 0) ? (availableHeight / tileableWindowCount) : 0;
-                    // Calculate Y position considering previous windows and gaps
-                    currentY = startY + (i * (currentHeight + gWindowGap));
-                    break;
-                }
-
-                case TilingModeMasterStack: {
-                    if (tileableWindowCount == 1) {
-                        // No gaps needed, takes full available frame
-                        currentX = startX;
-                        currentY = startY;
-                        currentWidth = totalWidth;
-                        currentHeight = totalHeight;
-                    } else {
-                        // Calculate space needed for the gap between master and stack
-                        CGFloat masterStackGap = gWindowGap;
-                        CGFloat effectiveWidth = totalWidth - masterStackGap; // Width available for master + stack panes
-
-                        CGFloat masterWidth = effectiveWidth * kMasterPaneRatio;
-                        CGFloat stackWidth = effectiveWidth - masterWidth;
-
-                        CFIndex stackWindowCount = tileableWindowCount - 1;
-                        CGFloat totalStackInternalGap = (stackWindowCount > 1) ? (stackWindowCount - 1) * gWindowGap : 0;
-                        CGFloat availableStackHeight = totalHeight - totalStackInternalGap;
-                        CGFloat stackHeight = (stackWindowCount > 0) ? (availableStackHeight / stackWindowCount) : 0; // Avoid division by zero
-
-                        if (i == 0) { // Master window
-                            currentX = startX;
-                            currentY = startY;
-                            currentWidth = masterWidth;
-                            currentHeight = totalHeight; // Master takes full height
-                        } else { // Stack windows
-                            CFIndex stackIndex = i - 1;
-                            currentX = startX + masterWidth + masterStackGap; // Position after master and the gap
-                            currentY = startY + (stackIndex * (stackHeight + gWindowGap)); // Position considering stack gaps
-                            currentWidth = stackWidth;
-                            currentHeight = stackHeight;
-                        }
-                    }
-                    break;
-                }
-
-                case TilingModeHorizontal:
-                default: {
-                    currentHeight = totalHeight; // Each window takes the full height (minus outer gaps)
-                    // Calculate width considering internal horizontal gaps
-                    CGFloat availableWidth = totalWidth - totalHorizontalGap;
-                    currentWidth = (tileableWindowCount > 0) ? (availableWidth / tileableWindowCount) : 0;
-                    // Calculate X position considering previous windows and gaps
-                    currentX = startX + (i * (currentWidth + gWindowGap));
-                    break;
-                }
+            CFIndex tileableWindowCount = [tileableWindows count];
+            if (tileableWindowCount == 0) {
+                NSLog(@"[+] No tileable windows found on screen: %@", [screen localizedName] ?: @"Unknown Screen");
+                continue;
             }
 
-            // Ensure calculated dimensions are not negative
-            currentWidth = MAX(0, currentWidth);
-            currentHeight = MAX(0, currentHeight);
+            NSLog(@"[+] Found %ld tileable window(s) on screen: %@", tileableWindowCount, [screen localizedName] ?: @"Unknown Screen");
 
-            // Send the resize command
-            bwm_resize_command(
-                nativePort, 
-                window_number, 
-                currentX, currentY, 
-                currentWidth, currentHeight, 
-                YES, 
-                gDisableShadows,
-                gTrafficLights);
+            NSRect screenFrame = NSInsetRect([screen visibleFrame], gWindowGap, gWindowGap);
+
+            CGFloat totalWidth = MAX(0, screenFrame.size.width);
+            CGFloat totalHeight = MAX(0, screenFrame.size.height);
+            CGFloat startX = screenFrame.origin.x;
+            CGFloat startY = screenFrame.origin.y;
+
+            for (CFIndex i = 0; i < tileableWindowCount; ++i) {
+                NSDictionary *tileInfo = tileableWindows[i];
+                pid_t pid = [tileInfo[@"pid"] intValue];
+                uint32_t window_number = [tileInfo[@"wid"] unsignedIntValue];
+
+                NSString *expectedPortName = [NSString stringWithFormat:@"com.bwmport.%d", pid];
+                mach_port_t nativePort = MACH_PORT_NULL;
+                NSPort *remoteServicePort = [[NSMachBootstrapServer sharedInstance] portForName:expectedPortName];
+
+                if (remoteServicePort && [remoteServicePort isKindOfClass:[NSMachPort class]]) {
+                    nativePort = [(NSMachPort *)remoteServicePort machPort];
+                }
+
+                if (nativePort == MACH_PORT_NULL || nativePort == MACH_PORT_DEAD) {
+                    NSLog(@"[!] Warning: Could not find or Mach port for PID %@ (WID %u) on screen %@ is invalid/dead using name '%@'. Skipping.", @(pid), window_number, [screen localizedName] ?: @"Unknown Screen", expectedPortName);
+                    continue;
+                }
+
+                CGFloat currentX = startX;
+                CGFloat currentY = startY;
+                CGFloat currentWidth = totalWidth;
+                CGFloat currentHeight = totalHeight;
+
+                CGFloat totalHorizontalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
+                CGFloat totalVerticalGap = (tileableWindowCount > 1) ? (tileableWindowCount - 1) * gWindowGap : 0;
+
+                switch (gCurrentTilingMode) {
+                    case TilingModeVertical: {
+                        currentWidth = totalWidth;
+                        CGFloat availableHeight = totalHeight - totalVerticalGap;
+                        currentHeight = (tileableWindowCount > 0) ? (availableHeight / tileableWindowCount) : 0;
+                        currentY = startY + (i * (currentHeight + gWindowGap));
+                        break;
+                    }
+
+                    case TilingModeMasterStack: {
+                        if (tileableWindowCount == 1) {
+                            currentX = startX;
+                            currentY = startY;
+                            currentWidth = totalWidth;
+                            currentHeight = totalHeight;
+                        } else {
+                            CGFloat masterStackGap = gWindowGap;
+                            CGFloat effectiveWidth = totalWidth - masterStackGap;
+                            CGFloat masterWidth = effectiveWidth * kMasterPaneRatio;
+                            CGFloat stackWidth = effectiveWidth - masterWidth;
+
+                            CFIndex stackWindowCount = tileableWindowCount - 1;
+                            CGFloat totalStackInternalGap = (stackWindowCount > 1) ? (stackWindowCount - 1) * gWindowGap : 0;
+                            CGFloat availableStackHeight = totalHeight - totalStackInternalGap;
+                            CGFloat stackHeight = (stackWindowCount > 0) ? (availableStackHeight / stackWindowCount) : 0;
+
+                            if (i == 0) {
+                                currentX = startX;
+                                currentY = startY;
+                                currentWidth = masterWidth;
+                                currentHeight = totalHeight;
+                            } else {
+                                CFIndex stackIndex = i - 1;
+                                currentX = startX + masterWidth + masterStackGap;
+                                currentY = startY + (stackIndex * (stackHeight + gWindowGap));
+                                currentWidth = stackWidth;
+                                currentHeight = stackHeight;
+                            }
+                        }
+                        break;
+                    }
+
+                    case TilingModeHorizontal:
+                    default: {
+                        currentHeight = totalHeight;
+                        CGFloat availableWidth = totalWidth - totalHorizontalGap;
+                        currentWidth = (tileableWindowCount > 0) ? (availableWidth / tileableWindowCount) : 0;
+                        currentX = startX + (i * (currentWidth + gWindowGap));
+                        break;
+                    }
+                }
+
+                currentWidth = MAX(0, currentWidth);
+                currentHeight = MAX(0, currentHeight);
+
+                bwm_resize_command(
+                    nativePort,
+                    window_number,
+                    currentX, currentY,
+                    currentWidth, currentHeight,
+                    YES, // animate -- add config
+                    gDisableShadows,
+                    gTrafficLights);
+            }
         }
     }
     return 0;
