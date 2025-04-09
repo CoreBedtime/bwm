@@ -190,4 +190,6 @@ routined
 ContextStoreAgent
 com.apple.hiservices-xpcservice
 talagent
+Electron
+Code
 WindowServer
