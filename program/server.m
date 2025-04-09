@@ -34,11 +34,12 @@ CFMachPortRef gEventTap = NULL;
 CFRunLoopSourceRef gRunLoopSource = NULL;
 NSArray<NSValue *> *gKeyBindings = nil;
 int gConnection = 0;
+CGFloat gMasterPaneRatio = 0.6;
+
 CGFloat gWindowGap = 50.0; // <<< ADDED: Default window gap
 bool gDisableShadows = true;
 bool gTrafficLights = false;
 
-static const CGFloat kMasterPaneRatio = 0.6;
 
 NSDictionary<NSString *, NSNumber *> *GetKeycodeMap() {
     static NSDictionary<NSString *, NSNumber *> *map = nil;
@@ -152,7 +153,7 @@ int ApplyTiling() {
                         } else {
                             CGFloat masterStackGap = gWindowGap;
                             CGFloat effectiveWidth = totalWidth - masterStackGap;
-                            CGFloat masterWidth = effectiveWidth * kMasterPaneRatio;
+                            CGFloat masterWidth = effectiveWidth * gMasterPaneRatio;
                             CGFloat stackWidth = effectiveWidth - masterWidth;
 
                             CFIndex stackWindowCount = tileableWindowCount - 1;
@@ -252,6 +253,10 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
                         targetMode = TilingModeMasterStack;
                         modeChanged = true;
                     }
+                } else if ([binding.action isEqualToString:@"inc_master_pane"]) {
+                    if (gMasterPaneRatio < 0.9) gMasterPaneRatio += 0.1;
+                } else if ([binding.action isEqualToString:@"dec_master_pane"]) {
+                    if (gMasterPaneRatio > 0.1) gMasterPaneRatio -= 0.1;
                 } else {
                     NSLog(@"Warning: executing with sh. dangerous!");
 
