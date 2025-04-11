@@ -2,7 +2,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 #include <stdbool.h>
-#import <mach/mach.h>
+#import <mach/mach.h> 
 #import <AppKit/AppKit.h>
 
 #import "../bwm.h"
@@ -96,7 +96,7 @@ static void setup() {
         pid_t pid = [processInfo processIdentifier];
         bsName = [@"com.bwmport." stringByAppendingString:@(pid).stringValue];
 
-        if ([[processInfo processName] isEqual:@"Dock"]) {
+        if ([[processInfo processName] isEqual:@"Dock"]) { 
             return;
         }
 
