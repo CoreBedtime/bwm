@@ -238,7 +238,27 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
                 bool modeChanged = false;
 
                 // Determine action based on the binding's action string
-                if ([binding.action isEqualToString:@"set_horizontal"]) {
+                if ([binding.action isEqualToString:@"reload"]) {
+                    // Get the path to the current executable
+                    NSString *executablePath = [[NSBundle mainBundle] executablePath];
+                    const char *path = [executablePath fileSystemRepresentation];
+
+                    // Get current arguments
+                    int argc = [[NSProcessInfo processInfo] arguments].count;
+                    NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
+                    
+                    // Build argv for execv
+                    char **argv = calloc(argc + 1, sizeof(char *));
+                    for (int i = 0; i < argc; i++) {
+                        argv[i] = strdup([args[i] UTF8String]);
+                    }
+                    argv[argc] = NULL;
+
+                    // Execute the same binary with the same arguments
+                    execv(path, argv); 
+                    perror("execv");
+                    exit(EXIT_FAILURE);
+                } else if ([binding.action isEqualToString:@"set_horizontal"]) {
                     if (gCurrentTilingMode != TilingModeHorizontal) {
                         targetMode = TilingModeHorizontal;
                         modeChanged = true;
