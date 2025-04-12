@@ -43,60 +43,94 @@ static bool IsValidWindow(CFTypeRef iterator) {
 extern
 int gConnection;
 
-NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce) {
-    NSMutableArray *tileableWindows = [NSMutableArray array];
-    uint64_t set_tags = 1;
-    uint64_t clear_tags = 0;
+extern
+int gWindowShift;
 
-    CFArrayRef space_list_ref = CFNumberArrayMake(&current_sapce,
+NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_space) {
+    NSMutableArray<NSDictionary *> *tileableWindows = [NSMutableArray array];
+    uint64_t set_tags = 1;     // Example tag condition
+    uint64_t clear_tags = 0;   // Example tag condition
+
+    // Create CFArray for the target space ID
+    CFArrayRef space_list_ref = CFNumberArrayMake(&current_space,
                                                    sizeof(uint64_t),
                                                    1,
                                                    kCFNumberSInt64Type);
+    if (!space_list_ref) {
+        NSLog(@"Error: Failed to create space list CFArrayRef");
+        return @[]; // Return empty array on failure
+    }
 
+    // Get window list for the specified space and tags
     CFArrayRef window_list = SLSCopyWindowsWithOptionsAndTags(gConnection,
-                                                                0,
+                                                                0, // 0 = All windows owned by connection (effectively system-wide with appropriate connection)
                                                                 space_list_ref,
-                                                                0x2,
+                                                                0x2, // Options (e.g., kCGWindowListOptionOnScreenOnly, but using SPI raw value)
                                                                 &set_tags,
-                                                                &clear_tags    );
+                                                                &clear_tags);
+    CFRelease(space_list_ref); // Release space list array
 
-    NSLog(@"%@", window_list);
+    // NSLog(@"Raw Window List: %@", window_list); // Debugging
 
     if (window_list) {
         uint32_t window_count = CFArrayGetCount(window_list);
         if (window_count > 0) {
-            CFTypeRef query = SLSWindowQueryWindows(gConnection, window_list, 0x0);
+            // Query details for the windows in the list
+            CFTypeRef query = SLSWindowQueryWindows(gConnection, window_list, window_count); // Pass correct count
             if (query) {
+                // Get an iterator for the query results
                 CFTypeRef iterator = SLSWindowQueryResultCopyWindows(query);
                 if (iterator) {
+                    // Iterate through the windows
                     while(SLSWindowIteratorAdvance(iterator)) {
+                        // Check if the window is one we want to manage/tile
                         if (IsValidWindow(iterator)) {
                             uint32_t wid = SLSWindowIteratorGetWindowID(iterator);
-                            int wid_cid = 0;
-                            SLSGetWindowOwner(gConnection, wid, &wid_cid);
+                            int wid_cid = 0; // Connection ID of the window's owner
+                            pid_t pid = 0;   // Process ID of the window's owner
 
-                            pid_t pid = 0;
-                            SLSConnectionGetPID(wid_cid, &pid);
+                            // Get the owner connection ID for the window
+                            if (SLSGetWindowOwner(gConnection, wid, &wid_cid) == kCGErrorSuccess) {
+                                // Get the PID from the owner connection ID
+                                SLSConnectionGetPID(wid_cid, &pid);
+                            } else {
+                                NSLog(@"Warning: Failed to get owner for WID %u", wid);
+                            }
 
-                            NSLog(@"%i", wid);
+                           // NSLog(@"Adding Valid Window - WID: %u, PID: %d", wid, pid); // Debugging
                             NSDictionary *tileInfo = @{
-                                @"pid": @(pid),
-                                @"wid": @(wid)
+                                @"pid": @(pid), // Store PID
+                                @"wid": @(wid)  // Store Window ID
                             };
                             [tileableWindows addObject:tileInfo];
-                            
                         }
                     }
-                    CFRelease(iterator);
-                    CFRelease(query);
+                    CFRelease(iterator); // Release iterator
                 }
+                CFRelease(query); // Release query object
             }
-            CFRelease(window_list);
         }
+        CFRelease(window_list); // Release original window list
     }
-    CFRelease(space_list_ref);
-
-    // Sort by window ID
+ 
     NSSortDescriptor *sortByWID = [NSSortDescriptor sortDescriptorWithKey:@"wid" ascending:YES];
-    return [tileableWindows sortedArrayUsingDescriptors:@[sortByWID]];\
+    NSArray<NSDictionary *> *sortedArray = [tileableWindows sortedArrayUsingDescriptors:@[sortByWID]];
+ 
+    NSUInteger count = [sortedArray count]; 
+    if (count == 0 || gWindowShift == 0) {
+        return sortedArray;
+    } 
+    NSInteger effectiveShift = (gWindowShift % (NSInteger)count + (NSInteger)count) % (NSInteger)count; 
+    if (effectiveShift == 0) {
+        return sortedArray;
+    } 
+
+    NSMutableArray<NSDictionary *> *shiftedArray = [NSMutableArray arrayWithCapacity:count];
+ 
+    for (NSUInteger newIndex = 0; newIndex < count; ++newIndex) { 
+        NSInteger oldIndex = ((NSInteger)newIndex - effectiveShift + (NSInteger)count) % (NSInteger)count; 
+        [shiftedArray addObject:[sortedArray objectAtIndex:(NSUInteger)oldIndex]];
+    }
+ 
+    return [shiftedArray copy];
 }

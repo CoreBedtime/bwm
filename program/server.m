@@ -35,6 +35,7 @@ CFRunLoopSourceRef gRunLoopSource = NULL;
 NSArray<NSValue *> *gKeyBindings = nil;
 int gConnection = 0;
 CGFloat gMasterPaneRatio = 0.6;
+int gWindowShift = 0;
 
 CGFloat gWindowGap = 50.0; // <<< ADDED: Default window gap
 bool gDisableShadows = true;
@@ -204,6 +205,78 @@ int ApplyTiling() {
     return 0;
 }
 
+void PerformActionString(NSString * action, bool * modeChanged, TilingMode * targetMode) {
+    if ([action isEqualToString:@"reload"]) {
+        // Get the path to the current executable
+        NSString *executablePath = [[NSBundle mainBundle] executablePath];
+        const char *path = [executablePath fileSystemRepresentation];
+
+        // Get current arguments
+        int argc = [[NSProcessInfo processInfo] arguments].count;
+        NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
+        
+        // Build argv for execv
+        char **argv = calloc(argc + 1, sizeof(char *));
+        for (int i = 0; i < argc; i++) {
+            argv[i] = strdup([args[i] UTF8String]);
+        }
+        argv[argc] = NULL;
+
+        // Execute the same binary with the same arguments
+        execv(path, argv); 
+        perror("execv");
+        exit(EXIT_FAILURE);
+        
+    } else if ([action isEqualToString:@"set_horizontal"]) {
+        if (gCurrentTilingMode != TilingModeHorizontal) {
+            *targetMode = TilingModeHorizontal;
+            *modeChanged = true;
+        }
+        
+    } else if ([action isEqualToString:@"set_vertical"]) {
+        if (gCurrentTilingMode != TilingModeVertical) {
+            *targetMode = TilingModeVertical;
+            *modeChanged = true;
+        }
+        
+    } else if ([action isEqualToString:@"set_master_stack"]) {
+        if (gCurrentTilingMode != TilingModeMasterStack) {
+            *targetMode = TilingModeMasterStack;
+            *modeChanged = true;
+        }
+
+    } else if ([action isEqualToString:@"inc_master_pane"]) {
+        if (gMasterPaneRatio < 0.9) gMasterPaneRatio += 0.1;
+
+    } else if ([action isEqualToString:@"dec_master_pane"]) {
+        if (gMasterPaneRatio > 0.1) gMasterPaneRatio -= 0.1;
+
+    } else if ([action isEqualToString:@"forward_shift"]) {
+        gWindowShift += 1;
+
+    } else if ([action isEqualToString:@"backward_shift"]) {
+        gWindowShift -= 1;
+
+    } else {
+        NSLog(@"Warning: executing with sh. dangerous!");
+
+        NSString *command = action;
+        if (command.length > 0) {
+            NSTask *task = [[NSTask alloc] init];
+            [task setLaunchPath:@"/bin/sh"];
+            [task setArguments:@[@"-c", command]];
+
+            @try {
+                [task launch];
+            } @catch (NSException *exception) {
+                NSLog(@"Failed to execute command: %@", exception);
+            }
+        } else {
+            NSLog(@"Empty command, nothing to execute.");
+        }
+    }
+}
+
 CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
         NSLog(@"[!] Event Tap Disabled (type %d). Re-enabling...", type);
@@ -238,64 +311,7 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
                 bool modeChanged = false;
 
                 // Determine action based on the binding's action string
-                if ([binding.action isEqualToString:@"reload"]) {
-                    // Get the path to the current executable
-                    NSString *executablePath = [[NSBundle mainBundle] executablePath];
-                    const char *path = [executablePath fileSystemRepresentation];
-
-                    // Get current arguments
-                    int argc = [[NSProcessInfo processInfo] arguments].count;
-                    NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
-                    
-                    // Build argv for execv
-                    char **argv = calloc(argc + 1, sizeof(char *));
-                    for (int i = 0; i < argc; i++) {
-                        argv[i] = strdup([args[i] UTF8String]);
-                    }
-                    argv[argc] = NULL;
-
-                    // Execute the same binary with the same arguments
-                    execv(path, argv); 
-                    perror("execv");
-                    exit(EXIT_FAILURE);
-                } else if ([binding.action isEqualToString:@"set_horizontal"]) {
-                    if (gCurrentTilingMode != TilingModeHorizontal) {
-                        targetMode = TilingModeHorizontal;
-                        modeChanged = true;
-                    }
-                } else if ([binding.action isEqualToString:@"set_vertical"]) {
-                    if (gCurrentTilingMode != TilingModeVertical) {
-                        targetMode = TilingModeVertical;
-                        modeChanged = true;
-                    }
-                } else if ([binding.action isEqualToString:@"set_master_stack"]) {
-                    if (gCurrentTilingMode != TilingModeMasterStack) {
-                        targetMode = TilingModeMasterStack;
-                        modeChanged = true;
-                    }
-                } else if ([binding.action isEqualToString:@"inc_master_pane"]) {
-                    if (gMasterPaneRatio < 0.9) gMasterPaneRatio += 0.1;
-                } else if ([binding.action isEqualToString:@"dec_master_pane"]) {
-                    if (gMasterPaneRatio > 0.1) gMasterPaneRatio -= 0.1;
-                } else {
-                    NSLog(@"Warning: executing with sh. dangerous!");
-
-                    NSString *command = binding.action;
-                    if (command.length > 0) {
-                        NSTask *task = [[NSTask alloc] init];
-                        [task setLaunchPath:@"/bin/sh"];
-                        [task setArguments:@[@"-c", command]];
-
-                        @try {
-                            [task launch];
-                        } @catch (NSException *exception) {
-                            NSLog(@"Failed to execute command: %@", exception);
-                        }
-                    } else {
-                        NSLog(@"Empty command, nothing to execute.");
-                    }
-                }
-
+                PerformActionString(binding.action, &modeChanged, &targetMode);
 
                 if(modeChanged) {
                     // Dispatch the tiling action to the main thread
