@@ -37,7 +37,7 @@ int gConnection = 0;
 CGFloat gMasterPaneRatio = 0.6;
 int gWindowShift = 0;
 
-CGFloat gWindowGap = 50.0; // <<< ADDED: Default window gap
+CGFloat gWindowGap = 50.0;
 bool gDisableShadows = true;
 bool gTrafficLights = false;
 
@@ -412,34 +412,7 @@ static int setup() {
                     dispatch_resume(timer);
                 } else {
                     NSLog(@"[!] Warning: Failed to create periodic timer.");
-                } 
-
-                // Start the main run loop to keep the application alive and process events
-                NSLog(@"[+] Starting main run loop...");
-                // [[NSRunLoop mainRunLoop] run]; // This blocks until the run loop is stopped
-
-                // // --- Cleanup (Code here might not be reached if run loop runs indefinitely) ---
-                // NSLog(@"[+] Run loop exited. Cleaning up...");
-
-                // if (timer) {
-                //     dispatch_source_cancel(timer);
-                //     NSLog(@"[+] Periodic timer cancelled.");
-                // }
-                // if (gRunLoopSource) {
-                //     CFRunLoopRemoveSource(CFRunLoopGetCurrent(), gRunLoopSource, kCFRunLoopCommonModes);
-                //     CFRelease(gRunLoopSource);
-                //     NSLog(@"[+] Run loop source removed and released.");
-                // }
-                // if (gEventTap) {
-                //     CGEventTapEnable(gEventTap, false);
-                //     CFRelease(gEventTap);
-                //     NSLog(@"[+] Event Tap disabled and released.");
-                // }
-
-                // // Release the global keybindings array
-                // gKeyBindings = nil;
-
-                // NSLog(@"[+] Application cleanup finished. Exiting.");
+                }
             });
         }
     }

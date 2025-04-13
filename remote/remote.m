@@ -40,7 +40,7 @@ float lerp(float a, float b, float t) {
 
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
-                if (mainWindow) {
+                if (mainWindow && !([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) {
                     NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
                     NSButton *minimizeButton = [mainWindow standardWindowButton:NSWindowMiniaturizeButton];
                     NSButton *zoomButton = [mainWindow standardWindowButton:NSWindowZoomButton];
