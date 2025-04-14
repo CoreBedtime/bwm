@@ -320,20 +320,13 @@ CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef 
                         gCurrentTilingMode = targetMode;
                         ApplyTiling();
                     });
-                    consumeEvent = true; // We handled this event
-                    break; // Stop checking other bindings
-                } else {
-                    NSLog(@"[+] Binding matched, but mode (%ld) is already active. No action taken.", (long)gCurrentTilingMode);
-                    // Decide if you still want to consume the event even if no action was taken
-                    // consumeEvent = true;
-                    // break;
                 }
+                consumeEvent = true;
+                break;
             }
         }
-    }
-
-    // Return NULL to consume the event (prevent it from reaching other apps),
-    // or return 'event' to let it pass through.
+    } 
+    
     return consumeEvent ? NULL : event;
 }
 
