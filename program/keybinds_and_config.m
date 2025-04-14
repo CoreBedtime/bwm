@@ -19,6 +19,7 @@ extern NSMutableArray<NSValue *> *gKeyBindings;
 extern CGFloat gWindowGap;
 extern bool gDisableShadows;
 extern bool gTrafficLights;
+extern int gAnimationStyle;
 
 NSArray * LoadKeyBindings() {
     NSMutableArray * KeyBindings = [NSMutableArray array];
@@ -133,6 +134,11 @@ bool LoadVisualSettings() {
         gWindowGap = [gapNumber doubleValue];
         if (gWindowGap < 0)
             gWindowGap = 0;
+    }
+
+    NSNumber *animStyle = visualsDict[@"animationstyle"];
+    if (animStyle && [animStyle isKindOfClass:[NSNumber class]]) {
+        gAnimationStyle = [animStyle intValue];
     }
 
     NSNumber *disableShadowsNumber = visualsDict[@"shadows"];

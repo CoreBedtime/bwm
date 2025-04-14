@@ -9,7 +9,7 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;arm64e;x86_64")
 # Build dylib from Objective-C source in remote/
 file(GLOB_RECURSE REMOTE_SRC "remote/*.m")
 add_library(bwm_remote SHARED ${REMOTE_SRC})
-target_link_libraries(bwm_remote "-framework AppKit")
+target_link_libraries(bwm_remote "-framework AppKit -framework QuartzCore")
 
 file(GLOB_RECURSE PROGRAM_SRC "program/*.m")
 add_library(bwm SHARED ${PROGRAM_SRC})

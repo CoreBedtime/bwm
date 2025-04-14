@@ -37,6 +37,7 @@ int gConnection = 0;
 CGFloat gMasterPaneRatio = 0.6;
 int gWindowShift = 0;
 
+int gAnimationStyle = 2; 
 CGFloat gWindowGap = 50.0;
 bool gDisableShadows = true;
 bool gTrafficLights = false;
@@ -196,7 +197,7 @@ int ApplyTiling() {
                     window_number,
                     currentX, currentY,
                     currentWidth, currentHeight,
-                    YES, // animate -- add config
+                    gAnimationStyle, // animate -- add config
                     gDisableShadows,
                     gTrafficLights);
             }

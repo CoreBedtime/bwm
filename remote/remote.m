@@ -4,10 +4,41 @@
 #include <stdbool.h>
 #import <mach/mach.h> 
 #import <AppKit/AppKit.h>
+#import <objc/runtime.h> // For associated objects
 
 #import "../bwm.h"
+#import "animstate.h"
 
 #include <stdint.h>
+
+// Key for associating animation state with an NSWindow
+static void *WindowAnimationStateKey = &WindowAnimationStateKey;
+
+const CGFloat kSpringTension = 200.0; // How stiff the spring is (higher = faster, less bounce)
+const CGFloat kSpringFriction = 15.0; // How much damping (higher = less bounce)
+const CGFloat kStopThreshold = 0.1;  // If speed and distance are below this, snap to target
+
+// Helper function for spring physics update
+static void updateSpring(CGFloat *currentValue, CGFloat *velocity, CGFloat targetValue, CGFloat tension, CGFloat friction, CGFloat deltaTime) {
+    if (deltaTime <= 0 || deltaTime > 0.1) { // Prevent huge jumps if deltaTime is weird
+         deltaTime = 1.0 / 60.0; // Assume 60fps if deltaTime is invalid
+    }
+
+    CGFloat displacement = targetValue - *currentValue;
+    CGFloat springForce = tension * displacement;
+    CGFloat dampingForce = friction * (*velocity);
+    CGFloat acceleration = springForce - dampingForce; // Assume mass = 1
+
+    *velocity = *velocity + acceleration * deltaTime;
+    *currentValue = *currentValue + (*velocity) * deltaTime;
+
+    // Check if we should stop the animation (optional but good)
+    if (fabs(*velocity) < kStopThreshold && fabs(targetValue - *currentValue) < kStopThreshold) {
+        *velocity = 0.0;
+        *currentValue = targetValue;
+    }
+}
+
 
 float lerp(float a, float b, float t) {
     return a + t * (b - a);
@@ -45,32 +76,93 @@ float lerp(float a, float b, float t) {
                     NSButton *minimizeButton = [mainWindow standardWindowButton:NSWindowMiniaturizeButton];
                     NSButton *zoomButton = [mainWindow standardWindowButton:NSWindowZoomButton];
 
+                    if (closeButton) [closeButton setHidden:trafficlights];
+                    if (minimizeButton) [minimizeButton setHidden:trafficlights];
+                    if (zoomButton) [zoomButton setHidden:trafficlights];
                     [mainWindow setHasShadow:shadow];
-                    [closeButton setHidden:trafficlights];
-                    [minimizeButton setHidden:trafficlights];
-                    [zoomButton setHidden:trafficlights];
-            
+
+                    NSRect currentFrame = mainWindow.frame;
+                    NSRect targetFrame = NSMakeRect(newx, newy, newWidth, newHeight);
 
                     switch (animate) {
                         case AnimationNone:
-                            [mainWindow setFrame:NSMakeRect(newx, 
-                                                            newy, 
-                                                            newWidth, 
-                                                            newHeight) display:YES animate:NO];
+                            objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                            [mainWindow setFrame:targetFrame display:YES animate:NO];
                             break;
                     
                         case AnimationNormal:
-                            [mainWindow setFrame:NSMakeRect(lerp(mainWindow.frame.origin.x, newx, 0.2), 
-                                                            lerp(mainWindow.frame.origin.y, newy, 0.2), 
-                                                            lerp(mainWindow.frame.size.width, newWidth, 0.2), 
-                                                            lerp(mainWindow.frame.size.height, newHeight, 0.2)) display:YES animate:NO];
+                            [mainWindow setFrame:NSMakeRect(lerp(mainWindow.frame.origin.x, newx, 0.3), 
+                                                            lerp(mainWindow.frame.origin.y, newy, 0.3), 
+                                                            lerp(mainWindow.frame.size.width, newWidth, 0.3), 
+                                                            lerp(mainWindow.frame.size.height, newHeight, 0.3)) display:YES animate:NO];
+
+                            objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                             break;
-                    
+
+                        case AnimationBounce: {
+                            // Get or create animation state for this window
+                            WindowAnimationState *state = objc_getAssociatedObject(mainWindow, WindowAnimationStateKey);
+                            if (!state) {
+                                // ... (initialization code as before) ...
+                                state = [[WindowAnimationState alloc] init];
+                                NSRect currentFrame = mainWindow.frame;
+                                state.currentX = currentFrame.origin.x;
+                                state.currentY = currentFrame.origin.y;
+                                state.currentWidth = currentFrame.size.width;
+                                state.currentHeight = currentFrame.size.height;
+                                objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                                NSLog(@"[!] Initialized bounce state for window ID %u", windowid);
+                            }
+
+                            // Calculate time delta
+                            NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate]; // Or CACurrentMediaTime()
+                            NSTimeInterval deltaTime = (state.lastUpdateTime > 0) ? (currentTime - state.lastUpdateTime) : (1.0 / 60.0);
+                            state.lastUpdateTime = currentTime;
+
+                            // --- Use local variables to pass addresses ---
+                            CGFloat localCurrentX = state.currentX;
+                            CGFloat localVelocityX = state.velocityX;
+                            updateSpring(&localCurrentX, &localVelocityX, newx, kSpringTension, kSpringFriction, deltaTime);
+                            state.currentX = localCurrentX; // Update property from local variable
+                            state.velocityX = localVelocityX; // Update property from local variable
+
+                            CGFloat localCurrentY = state.currentY;
+                            CGFloat localVelocityY = state.velocityY;
+                            updateSpring(&localCurrentY, &localVelocityY, newy, kSpringTension, kSpringFriction, deltaTime);
+                            state.currentY = localCurrentY;
+                            state.velocityY = localVelocityY;
+
+                            CGFloat localCurrentWidth = state.currentWidth;
+                            CGFloat localVelocityWidth = state.velocityWidth;
+                            updateSpring(&localCurrentWidth, &localVelocityWidth, newWidth, kSpringTension, kSpringFriction, deltaTime);
+                             // Clamp width during update if needed, or just assign back
+                            state.currentWidth = localCurrentWidth;
+                            state.velocityWidth = localVelocityWidth;
+
+
+                            CGFloat localCurrentHeight = state.currentHeight;
+                            CGFloat localVelocityHeight = state.velocityHeight;
+                            updateSpring(&localCurrentHeight, &localVelocityHeight, newHeight, kSpringTension, kSpringFriction, deltaTime);
+                            // Clamp height during update if needed, or just assign back
+                            state.currentHeight = localCurrentHeight;
+                            state.velocityHeight = localVelocityHeight;
+                            // --- End local variable usage ---
+
+
+                            // Clamp width/height to prevent negative values (apply AFTER updateSpring)
+                            if (state.currentWidth < 10.0) state.currentWidth = 10.0;
+                            if (state.currentHeight < 10.0) state.currentHeight = 10.0;
+
+                            // Apply the calculated frame
+                            NSRect newFrame = NSMakeRect(state.currentX, state.currentY, state.currentWidth, state.currentHeight);
+                            [mainWindow setFrame:newFrame display:YES animate:NO];
+
+                            break;
+                        }
+
                         default:
-                            [mainWindow setFrame:NSMakeRect(newx, 
-                                                            newy, 
-                                                            newWidth, 
-                                                            newHeight) display:YES animate:NO];
+                            objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                            [mainWindow setFrame:targetFrame display:YES animate:NO];
                             break;
                     }
                 }
