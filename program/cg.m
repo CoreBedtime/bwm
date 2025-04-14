@@ -93,16 +93,15 @@ NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_space) {
                             if (SLSGetWindowOwner(gConnection, wid, &wid_cid) == kCGErrorSuccess) {
                                 // Get the PID from the owner connection ID
                                 SLSConnectionGetPID(wid_cid, &pid);
+
+                                NSDictionary *tileInfo = @{
+                                    @"pid": @(pid), // Store PID
+                                    @"wid": @(wid)  // Store Window ID
+                                };
+                                [tileableWindows addObject:tileInfo];
                             } else {
                                 NSLog(@"Warning: Failed to get owner for WID %u", wid);
                             }
-
-                           // NSLog(@"Adding Valid Window - WID: %u, PID: %d", wid, pid); // Debugging
-                            NSDictionary *tileInfo = @{
-                                @"pid": @(pid), // Store PID
-                                @"wid": @(wid)  // Store Window ID
-                            };
-                            [tileableWindows addObject:tileInfo];
                         }
                     }
                     CFRelease(iterator); // Release iterator
