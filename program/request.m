@@ -14,7 +14,8 @@ bool bwm_resize_command(mach_port_t remote_port,
                         CGFloat width, CGFloat height, 
                         int animate,
                         bool shadow,
-                        bool trafficlights) {
+                        bool button_position,
+                        bool title_or_icon) {
     kern_return_t kr;
     struct {
         mach_msg_header_t header;
@@ -32,7 +33,10 @@ bool bwm_resize_command(mach_port_t remote_port,
     msg.data._wid = wid;
     msg.data.animate = animate;
     msg.data.shadow = shadow;
-    msg.data.trafficlights = trafficlights;
+
+    msg.data.gsd_button_position = button_position;
+    msg.data.gsd_title_or_icon = title_or_icon;
+
     msg.data.width = width;
     msg.data.height = height;
     msg.data.x = x;

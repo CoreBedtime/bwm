@@ -11,7 +11,16 @@
 
 #include <stdint.h>
 
-// Key for associating animation state with an NSWindow
+extern 
+void MakeTitlebar(
+    NSWindow **outWindow,
+    NSWindow *mainWindow,
+    bool button_position,
+    bool title_or_icon,
+    NSImage * _Nullable backgroundImage
+);
+
+void *WindowTitlebarKey = &WindowTitlebarKey;
 static void *WindowAnimationStateKey = &WindowAnimationStateKey;
 
 const CGFloat kSpringTension = 200.0; // How stiff the spring is (higher = faster, less bounce)
@@ -61,7 +70,10 @@ float lerp(float a, float b, float t) {
             uint32_t windowid = data->_wid;
             int animate = data->animate;
             bool shadow = data->shadow;
-            bool trafficlights = data->trafficlights;
+            
+            bool title_or_icon = data->gsd_title_or_icon;
+            bool orientation = data->gsd_button_position;
+
             CGFloat newWidth = data->width;
             CGFloat newHeight = data->height;
             CGFloat newx = data->x;
@@ -72,13 +84,20 @@ float lerp(float a, float b, float t) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
                 if (mainWindow && !([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) {
+                    NSWindow *titlebarWindow = objc_getAssociatedObject(mainWindow, WindowTitlebarKey);
+
+                    if (!titlebarWindow) {
+                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, NULL);
+                    }
+                
                     NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
                     NSButton *minimizeButton = [mainWindow standardWindowButton:NSWindowMiniaturizeButton];
                     NSButton *zoomButton = [mainWindow standardWindowButton:NSWindowZoomButton];
+                    if (closeButton) [closeButton setHidden:YES];
+                    if (minimizeButton) [minimizeButton setHidden:YES];
+                    if (zoomButton) [zoomButton setHidden:YES];
+                    
 
-                    if (closeButton) [closeButton setHidden:trafficlights];
-                    if (minimizeButton) [minimizeButton setHidden:trafficlights];
-                    if (zoomButton) [zoomButton setHidden:trafficlights];
                     [mainWindow setHasShadow:shadow];
 
                     NSRect currentFrame = mainWindow.frame;
@@ -164,6 +183,17 @@ float lerp(float a, float b, float t) {
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                             [mainWindow setFrame:targetFrame display:YES animate:NO];
                             break;
+                    }
+                    if (titlebarWindow) {
+                        NSRect newMain = mainWindow.frame;
+                        CGFloat titlebarHeight = titlebarWindow.frame.size.height;
+                        NSRect newTitlebarFrame = NSMakeRect(
+                            newMain.origin.x,
+                            NSMaxY(newMain),
+                            newMain.size.width,
+                            titlebarHeight
+                        );
+                        [titlebarWindow setFrame:newTitlebarFrame display:YES];
                     }
                 }
             });

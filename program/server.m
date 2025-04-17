@@ -15,7 +15,8 @@ bool bwm_resize_command(mach_port_t remote_port,
                         CGFloat width, CGFloat height, 
                         int animate,
                         bool shadow,
-                        bool trafficlights);
+                        bool button_position,
+                        bool title_or_icon);
 
 extern NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce);
 NSArray * LoadKeyBindings();
@@ -40,7 +41,8 @@ int gWindowShift = 0;
 int gAnimationStyle = 2; 
 CGFloat gWindowGap = 50.0;
 bool gDisableShadows = true;
-bool gTrafficLights = false;
+bool gTitleOrIcon = false;
+bool gButtonPos = false;
 
 
 NSDictionary<NSString *, NSNumber *> *GetKeycodeMap() {
@@ -199,7 +201,8 @@ int ApplyTiling() {
                     currentWidth, currentHeight,
                     gAnimationStyle, // animate -- add config
                     gDisableShadows,
-                    gTrafficLights);
+                    gButtonPos,
+                    gTitleOrIcon);
             }
         }
     }

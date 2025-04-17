@@ -18,8 +18,10 @@ extern NSMutableArray<NSValue *> *gKeyBindings;
 
 extern CGFloat gWindowGap;
 extern bool gDisableShadows;
-extern bool gTrafficLights;
 extern int gAnimationStyle;
+extern bool gTitleOrIcon;
+extern bool gButtonPos;
+
 
 NSArray * LoadKeyBindings() {
     NSMutableArray * KeyBindings = [NSMutableArray array];
@@ -146,9 +148,14 @@ bool LoadVisualSettings() {
         gDisableShadows = [disableShadowsNumber boolValue];
     }
 
-    NSNumber *trafficlightsval = visualsDict[@"windowcontrols"];
-    if (trafficlightsval && [trafficlightsval isKindOfClass:[NSNumber class]]) {
-        gTrafficLights = [trafficlightsval boolValue];
+    NSNumber *TitleOrIconVal = visualsDict[@"title_or_icon"];
+    if (TitleOrIconVal && [TitleOrIconVal isKindOfClass:[NSNumber class]]) {
+        gTitleOrIcon = [TitleOrIconVal boolValue];
+    }
+
+    NSNumber *OrientationVal = visualsDict[@"button_position"];
+    if (OrientationVal && [OrientationVal isKindOfClass:[NSNumber class]]) {
+        gButtonPos = [OrientationVal boolValue];
     }
 
 
