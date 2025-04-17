@@ -7,6 +7,8 @@ bwm is a fast feeling tiling window manager for macOS built with native APIs. It
 
 
 ----
+https://github.com/user-attachments/assets/6807419b-848a-476f-8cb2-062b576af2c9
+----
 
 
 # 🛠 Installation
