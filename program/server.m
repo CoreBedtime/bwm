@@ -13,11 +13,12 @@ bool bwm_resize_command(mach_port_t remote_port,
                         uint32_t wid, 
                         CGFloat x, CGFloat y, 
                         CGFloat width, CGFloat height, 
+                        CGFloat animate_force,
                         int animate,
                         int titlebarheight,
                         bool shadow,
                         bool button_position,
-                        bool title_or_icon);
+                        bool title_or_icon) ;
 
 extern NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce);
 NSArray * LoadKeyBindings();
@@ -41,6 +42,7 @@ int gWindowShift = 0;
 
 int gTitlebarHeight = 33; 
 int gAnimationStyle = 2; 
+CGFloat gWindowForce = 200.0;
 CGFloat gWindowGap = 50.0;
 bool gDisableShadows = true;
 bool gTitleOrIcon = false;
@@ -201,7 +203,8 @@ int ApplyTiling() {
                     window_number,
                     currentX, currentY,
                     currentWidth, currentHeight,
-                    gAnimationStyle, // animate -- add config
+                    gWindowForce,
+                    gAnimationStyle,
                     gTitlebarHeight,
                     gDisableShadows,
                     gButtonPos,

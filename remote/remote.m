@@ -24,7 +24,6 @@ void MakeTitlebar(
 void *WindowTitlebarKey = &WindowTitlebarKey;
 static void *WindowAnimationStateKey = &WindowAnimationStateKey;
 
-const CGFloat kSpringTension = 200.0; // How stiff the spring is (higher = faster, less bounce)
 const CGFloat kSpringFriction = 15.0; // How much damping (higher = less bounce)
 const CGFloat kStopThreshold = 0.1;  // If speed and distance are below this, snap to target
 
@@ -81,7 +80,8 @@ float lerp(float a, float b, float t) {
             CGFloat newx = data->x;
             CGFloat newy = data->y;
 
-            NSLog(@"[!] Resize command received: Width=%.2f, Height=%.2f", newWidth, newHeight);
+            CGFloat force = data->animate_force;
+
 
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
@@ -143,19 +143,19 @@ float lerp(float a, float b, float t) {
                             // --- Use local variables to pass addresses ---
                             CGFloat localCurrentX = state.currentX;
                             CGFloat localVelocityX = state.velocityX;
-                            updateSpring(&localCurrentX, &localVelocityX, newx, kSpringTension, kSpringFriction, deltaTime);
+                            updateSpring(&localCurrentX, &localVelocityX, newx, force, kSpringFriction, deltaTime);
                             state.currentX = localCurrentX; // Update property from local variable
                             state.velocityX = localVelocityX; // Update property from local variable
 
                             CGFloat localCurrentY = state.currentY;
                             CGFloat localVelocityY = state.velocityY;
-                            updateSpring(&localCurrentY, &localVelocityY, newy, kSpringTension, kSpringFriction, deltaTime);
+                            updateSpring(&localCurrentY, &localVelocityY, newy, force, kSpringFriction, deltaTime);
                             state.currentY = localCurrentY;
                             state.velocityY = localVelocityY;
 
                             CGFloat localCurrentWidth = state.currentWidth;
                             CGFloat localVelocityWidth = state.velocityWidth;
-                            updateSpring(&localCurrentWidth, &localVelocityWidth, newWidth, kSpringTension, kSpringFriction, deltaTime);
+                            updateSpring(&localCurrentWidth, &localVelocityWidth, newWidth, force, kSpringFriction, deltaTime);
                              // Clamp width during update if needed, or just assign back
                             state.currentWidth = localCurrentWidth;
                             state.velocityWidth = localVelocityWidth;
@@ -163,7 +163,7 @@ float lerp(float a, float b, float t) {
 
                             CGFloat localCurrentHeight = state.currentHeight;
                             CGFloat localVelocityHeight = state.velocityHeight;
-                            updateSpring(&localCurrentHeight, &localVelocityHeight, newHeight, kSpringTension, kSpringFriction, deltaTime);
+                            updateSpring(&localCurrentHeight, &localVelocityHeight, newHeight, force, kSpringFriction, deltaTime);
                             // Clamp height during update if needed, or just assign back
                             state.currentHeight = localCurrentHeight;
                             state.velocityHeight = localVelocityHeight;

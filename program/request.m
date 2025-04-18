@@ -1,4 +1,5 @@
 // request.m
+#include <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
 #include <sys/socket.h>
 #import <sys/un.h>
@@ -12,6 +13,7 @@ bool bwm_resize_command(mach_port_t remote_port,
                         uint32_t wid, 
                         CGFloat x, CGFloat y, 
                         CGFloat width, CGFloat height, 
+                        CGFloat animate_force,
                         int animate,
                         int titlebarheight,
                         bool shadow,
@@ -32,6 +34,8 @@ bool bwm_resize_command(mach_port_t remote_port,
     msg.header.msgh_id = BWM_RESIZE_MSG_ID;
 
     msg.data._wid = wid;
+
+    msg.data.animate_force = animate_force;
     msg.data.animate = animate;
     msg.data.shadow = shadow;
 

@@ -16,12 +16,38 @@
 extern NSDictionary<NSString *, NSNumber *> *GetKeycodeMap();
 extern NSMutableArray<NSValue *> *gKeyBindings;
 
+extern CGFloat gWindowForce;
 extern CGFloat gWindowGap;
 extern bool gDisableShadows;
 extern int gAnimationStyle;
 extern int gTitlebarHeight;
 extern bool gTitleOrIcon;
 extern bool gButtonPos;
+
+
+#define LOAD_BOOL(dict, key, var) \
+    do { \
+        id _val = dict[key]; \
+        if ([_val isKindOfClass:[NSNumber class]]) { \
+            var = [_val boolValue]; \
+        } \
+    } while (0)
+
+#define LOAD_INT(dict, key, var) \
+    do { \
+        id _val = dict[key]; \
+        if ([_val isKindOfClass:[NSNumber class]]) { \
+            var = [_val intValue]; \
+        } \
+    } while (0)
+
+#define LOAD_DOUBLE(dict, key, var) \
+    do { \
+        id _val = dict[key]; \
+        if ([_val isKindOfClass:[NSNumber class]]) { \
+            var = [_val doubleValue]; \
+        } \
+    } while (0)
 
 
 NSArray * LoadKeyBindings() {
@@ -131,39 +157,17 @@ bool LoadVisualSettings() {
 
     NSDictionary *visualsDict = (NSDictionary *)jsonObject;
 
-    // Load Gap setting
-    NSNumber *gapNumber = visualsDict[@"gap"];
-    if (gapNumber && [gapNumber isKindOfClass:[NSNumber class]]) {
-        gWindowGap = [gapNumber doubleValue];
-        if (gWindowGap < 0)
-            gWindowGap = 0;
-    }
+    LOAD_DOUBLE(visualsDict, @"gap", gWindowGap);
+    gWindowGap = MAX(0, gWindowGap);
 
-    NSNumber *animStyle = visualsDict[@"animationstyle"];
-    if (animStyle && [animStyle isKindOfClass:[NSNumber class]]) {
-        gAnimationStyle = [animStyle intValue];
-    }
+    LOAD_DOUBLE(visualsDict, @"spring_animation_force", gWindowForce);
+    gWindowForce = MAX(0, gWindowForce);
 
-    NSNumber *TitlebarHeight = visualsDict[@"titlebarheight"];
-    if (TitlebarHeight && [TitlebarHeight isKindOfClass:[NSNumber class]]) {
-        gTitlebarHeight = [TitlebarHeight intValue];
-    }
-
-    NSNumber *disableShadowsNumber = visualsDict[@"shadows"];
-    if (disableShadowsNumber && [disableShadowsNumber isKindOfClass:[NSNumber class]]) {
-        gDisableShadows = [disableShadowsNumber boolValue];
-    }
-
-    NSNumber *TitleOrIconVal = visualsDict[@"title_or_icon"];
-    if (TitleOrIconVal && [TitleOrIconVal isKindOfClass:[NSNumber class]]) {
-        gTitleOrIcon = [TitleOrIconVal boolValue];
-    }
-
-    NSNumber *OrientationVal = visualsDict[@"button_position"];
-    if (OrientationVal && [OrientationVal isKindOfClass:[NSNumber class]]) {
-        gButtonPos = [OrientationVal boolValue];
-    }
-
+    LOAD_INT(visualsDict, @"animationstyle", gAnimationStyle);
+    LOAD_INT(visualsDict, @"titlebarheight", gTitlebarHeight);
+    LOAD_BOOL(visualsDict, @"shadows", gDisableShadows);
+    LOAD_BOOL(visualsDict, @"title_or_icon", gTitleOrIcon);
+    LOAD_BOOL(visualsDict, @"button_position", gButtonPos);
 
 
     return true; // Settings loaded successfully (or defaults used)

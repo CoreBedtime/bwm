@@ -10,6 +10,7 @@ enum AnimationType {AnimationNone, AnimationNormal, AnimationBounce};
 typedef struct {
     uint32_t _wid;
     int animate;
+    CGFloat animate_force;
     bool shadow;
     int gsd_titlebar_height;
     bool gsd_title_or_icon;
