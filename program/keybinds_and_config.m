@@ -21,11 +21,34 @@ extern CGFloat gWindowGap;
 extern bool gDisableShadows;
 extern int gAnimationStyle;
 extern int gTitlebarHeight;
+extern uint32_t gTitlebarColor;
 extern bool gTitleOrIcon;
 extern bool gButtonPos;
-
 extern int gPaddingLeft, gPaddingRight, gPaddingTop, gPaddingBottom; 
 
+uint32_t ColorIntFromHexString(NSString *hexString) {
+    if (![hexString isKindOfClass:[NSString class]]) return 0xFFFFFFFF; // white fallback
+    NSString *clean = [[hexString stringByTrimmingCharactersInSet:
+                        [NSCharacterSet whitespaceAndNewlineCharacterSet]] uppercaseString];
+
+    if ([clean hasPrefix:@"#"]) clean = [clean substringFromIndex:1];
+
+    if (clean.length == 6) {
+        // Format: RRGGBB → assume full alpha (0xFF)
+        unsigned int rgb;
+        if ([[NSScanner scannerWithString:clean] scanHexInt:&rgb]) {
+            return 0xFF000000 | rgb;
+        }
+    } else if (clean.length == 8) {
+        // Format: AARRGGBB
+        unsigned int argb;
+        if ([[NSScanner scannerWithString:clean] scanHexInt:&argb]) {
+            return argb;
+        }
+    }
+
+    return 0xFFFFFFFF; // fallback to white
+}
 
 #define LOAD_BOOL(dict, key, var) \
     do { \
@@ -176,6 +199,8 @@ bool LoadVisualSettings() {
     LOAD_BOOL(visualsDict, @"shadows", gDisableShadows);
     LOAD_BOOL(visualsDict, @"title_or_icon", gTitleOrIcon);
     LOAD_BOOL(visualsDict, @"button_position", gButtonPos);
+
+    gTitlebarColor = ColorIntFromHexString(visualsDict[@"titlebarcolor"] ?: @"#FFAA33");
 
 
     return true; // Settings loaded successfully (or defaults used)

@@ -21,6 +21,9 @@ void MakeTitlebar(
     NSImage * _Nullable backgroundImage
 );
 
+extern
+NSImage *CreateColorSwatchFromARGB(uint32_t argb);
+
 void *WindowTitlebarKey = &WindowTitlebarKey;
 static void *WindowAnimationStateKey = &WindowAnimationStateKey;
 
@@ -30,7 +33,7 @@ const CGFloat kStopThreshold = 0.1;  // If speed and distance are below this, sn
 // Helper function for spring physics update
 static void updateSpring(CGFloat *currentValue, CGFloat *velocity, CGFloat targetValue, CGFloat tension, CGFloat friction, CGFloat deltaTime) {
     if (deltaTime <= 0 || deltaTime > 0.1) { // Prevent huge jumps if deltaTime is weird
-         deltaTime = 1.0 / 60.0; // Assume 60fps if deltaTime is invalid
+        deltaTime = 1.0 / 60.0; // Assume 60fps if deltaTime is invalid
     }
 
     CGFloat displacement = targetValue - *currentValue;
@@ -40,8 +43,7 @@ static void updateSpring(CGFloat *currentValue, CGFloat *velocity, CGFloat targe
 
     *velocity = *velocity + acceleration * deltaTime;
     *currentValue = *currentValue + (*velocity) * deltaTime;
-
-    // Check if we should stop the animation (optional but good)
+ 
     if (fabs(*velocity) < kStopThreshold && fabs(targetValue - *currentValue) < kStopThreshold) {
         *velocity = 0.0;
         *currentValue = targetValue;
@@ -72,6 +74,7 @@ float lerp(float a, float b, float t) {
             bool shadow = data->shadow;
             
             int titlebar_height = data->gsd_titlebar_height;
+            uint32_t titlebar_color = data->gsd_titlebar_col;
             bool title_or_icon = data->gsd_title_or_icon;
             bool orientation = data->gsd_button_position;
 
@@ -88,7 +91,7 @@ float lerp(float a, float b, float t) {
                     NSWindow *titlebarWindow = objc_getAssociatedObject(mainWindow, WindowTitlebarKey);
 
                     if (!titlebarWindow) {
-                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, titlebar_height, NULL);
+                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, titlebar_height, CreateColorSwatchFromARGB(titlebar_color));
                     }
                 
                     NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
@@ -119,8 +122,7 @@ float lerp(float a, float b, float t) {
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                             break;
 
-                        case AnimationBounce: {
-                            // Get or create animation state for this window
+                        case AnimationBounce: { 
                             WindowAnimationState *state = objc_getAssociatedObject(mainWindow, WindowAnimationStateKey);
                             if (!state) {
                                 // ... (initialization code as before) ...
@@ -133,13 +135,11 @@ float lerp(float a, float b, float t) {
                                 objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                                 NSLog(@"[!] Initialized bounce state for window ID %u", windowid);
                             }
-
-                            // Calculate time delta
+ 
                             NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate]; // Or CACurrentMediaTime()
                             NSTimeInterval deltaTime = (state.lastUpdateTime > 0) ? (currentTime - state.lastUpdateTime) : (1.0 / 60.0);
                             state.lastUpdateTime = currentTime;
-
-                            // --- Use local variables to pass addresses ---
+ 
                             CGFloat localCurrentX = state.currentX;
                             CGFloat localVelocityX = state.velocityX;
                             updateSpring(&localCurrentX, &localVelocityX, newx, force, kSpringFriction, deltaTime);
@@ -155,7 +155,7 @@ float lerp(float a, float b, float t) {
                             CGFloat localCurrentWidth = state.currentWidth;
                             CGFloat localVelocityWidth = state.velocityWidth;
                             updateSpring(&localCurrentWidth, &localVelocityWidth, newWidth, force, kSpringFriction, deltaTime);
-                             // Clamp width during update if needed, or just assign back
+ 
                             state.currentWidth = localCurrentWidth;
                             state.velocityWidth = localVelocityWidth;
 
@@ -163,13 +163,10 @@ float lerp(float a, float b, float t) {
                             CGFloat localCurrentHeight = state.currentHeight;
                             CGFloat localVelocityHeight = state.velocityHeight;
                             updateSpring(&localCurrentHeight, &localVelocityHeight, newHeight, force, kSpringFriction, deltaTime);
-                            // Clamp height during update if needed, or just assign back
+ 
                             state.currentHeight = localCurrentHeight;
                             state.velocityHeight = localVelocityHeight;
-                            // --- End local variable usage ---
-
-
-                            // Clamp width/height to prevent negative values (apply AFTER updateSpring)
+ 
                             if (state.currentWidth < 10.0) state.currentWidth = 10.0;
                             if (state.currentHeight < 10.0) state.currentHeight = 10.0;
 

@@ -16,6 +16,7 @@ bool bwm_resize_command(mach_port_t remote_port,
                         CGFloat animate_force,
                         int animate,
                         int titlebarheight,
+                        uint32_t titlebar_color,
                         bool shadow,
                         bool button_position,
                         bool title_or_icon) ;
@@ -42,6 +43,8 @@ int gWindowShift = 0;
 
 int gPaddingLeft = 100, gPaddingRight = 100, gPaddingTop = 100, gPaddingBottom = 100; 
 
+
+uint32_t gTitlebarColor = 0xFF00FF00;
 int gTitlebarHeight = 33; 
 int gAnimationStyle = 2; 
 CGFloat gWindowForce = 200.0;
@@ -225,6 +228,7 @@ int ApplyTiling() {
                     gWindowForce,
                     gAnimationStyle,
                     gTitlebarHeight,
+                    gTitlebarColor,
                     gDisableShadows,
                     gButtonPos,
                     gTitleOrIcon);

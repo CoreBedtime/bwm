@@ -13,6 +13,7 @@ typedef struct {
     CGFloat animate_force;
     bool shadow;
     int gsd_titlebar_height;
+    uint32_t gsd_titlebar_col;
     bool gsd_title_or_icon;
     bool gsd_button_position;
     CGFloat x, y;

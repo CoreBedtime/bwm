@@ -74,6 +74,27 @@ NSView *GetTitlebarDecorationViewFromWindow(NSWindow *window) {
     return FindTitlebarDecorationView(window.contentView.superview);
 }
 
+NSImage *CreateColorSwatchFromARGB(uint32_t argb) {
+    CGFloat width = 4.0;
+    CGFloat height = 4.0;
+
+    // Extract components from 0xAARRGGBB
+    CGFloat alpha = ((argb >> 24) & 0xFF) / 255.0;
+    CGFloat red   = ((argb >> 16) & 0xFF) / 255.0;
+    CGFloat green = ((argb >> 8)  & 0xFF) / 255.0;
+    CGFloat blue  = (argb & 0xFF) / 255.0;
+
+    NSColor *color = [NSColor colorWithCalibratedRed:red green:green blue:blue alpha:alpha];
+    NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(width, height)];
+
+    [image lockFocus];
+    [color setFill];
+    NSRectFill(NSMakeRect(0, 0, width, height));
+    [image unlockFocus];
+
+    return image;
+}
+
 void MakeTitlebar(
     NSWindow **outWindow,
     NSWindow *mainWindow,
