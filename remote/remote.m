@@ -82,7 +82,6 @@ float lerp(float a, float b, float t) {
 
             CGFloat force = data->animate_force;
 
-
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
                 if (mainWindow && !([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) {
@@ -108,7 +107,7 @@ float lerp(float a, float b, float t) {
                     switch (animate) {
                         case AnimationNone:
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                            [mainWindow setFrame:targetFrame display:YES animate:NO];
+                            [mainWindow setFrame:targetFrame display:NO animate:NO];
                             break;
                     
                         case AnimationNormal:
@@ -176,14 +175,14 @@ float lerp(float a, float b, float t) {
 
                             // Apply the calculated frame
                             NSRect newFrame = NSMakeRect(state.currentX, state.currentY, state.currentWidth, state.currentHeight);
-                            [mainWindow setFrame:newFrame display:YES animate:NO];
+                            [mainWindow setFrame:newFrame display:NO animate:NO];
 
                             break;
                         }
 
                         default:
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                            [mainWindow setFrame:targetFrame display:YES animate:NO];
+                            [mainWindow setFrame:targetFrame display:NO animate:NO];
                             break;
                     }
                     if (titlebarWindow) {

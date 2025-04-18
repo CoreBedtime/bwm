@@ -24,6 +24,8 @@ extern int gTitlebarHeight;
 extern bool gTitleOrIcon;
 extern bool gButtonPos;
 
+extern int gPaddingLeft, gPaddingRight, gPaddingTop, gPaddingBottom; 
+
 
 #define LOAD_BOOL(dict, key, var) \
     do { \
@@ -165,6 +167,12 @@ bool LoadVisualSettings() {
 
     LOAD_INT(visualsDict, @"animationstyle", gAnimationStyle);
     LOAD_INT(visualsDict, @"titlebarheight", gTitlebarHeight);
+    
+    LOAD_INT(visualsDict, @"padding_left", gPaddingLeft);
+    LOAD_INT(visualsDict, @"padding_right", gPaddingRight);
+    LOAD_INT(visualsDict, @"padding_top", gPaddingTop);
+    LOAD_INT(visualsDict, @"padding_bottom", gPaddingBottom);
+
     LOAD_BOOL(visualsDict, @"shadows", gDisableShadows);
     LOAD_BOOL(visualsDict, @"title_or_icon", gTitleOrIcon);
     LOAD_BOOL(visualsDict, @"button_position", gButtonPos);

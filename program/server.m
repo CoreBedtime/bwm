@@ -40,6 +40,8 @@ int gConnection = 0;
 CGFloat gMasterPaneRatio = 0.6;
 int gWindowShift = 0;
 
+int gPaddingLeft = 100, gPaddingRight = 100, gPaddingTop = 100, gPaddingBottom = 100; 
+
 int gTitlebarHeight = 33; 
 int gAnimationStyle = 2; 
 CGFloat gWindowForce = 200.0;
@@ -110,8 +112,24 @@ int ApplyTiling() {
 
             NSLog(@"[+] Found %ld tileable window(s) on screen: %@", tileableWindowCount, [screen localizedName] ?: @"Unknown Screen");
 
-            NSRect screenFrame = NSInsetRect([screen visibleFrame], gWindowGap, gWindowGap);
-
+            NSRect visible = [screen visibleFrame];
+            NSRect screenFrame = NSMakeRect(
+                visible.origin.x
+                  + gWindowGap
+                  + gPaddingLeft,                              // push in from left
+                visible.origin.y
+                  + gWindowGap
+                  + gPaddingBottom,                            // push in from bottom
+                visible.size.width
+                  - 2*gWindowGap
+                  - gPaddingLeft
+                  - gPaddingRight,                            // shave off left+right
+                visible.size.height
+                  - 2*gWindowGap
+                  - gPaddingTop
+                  - gPaddingBottom                          // shave off top+bottom
+            );
+ 
             CGFloat totalWidth = MAX(0, screenFrame.size.width);
             CGFloat totalHeight = MAX(0, screenFrame.size.height);
             CGFloat startX = screenFrame.origin.x;
@@ -196,7 +214,8 @@ int ApplyTiling() {
                 }
 
                 currentWidth = MAX(0, currentWidth);
-                currentHeight = MAX(0, currentHeight);
+                currentHeight = MAX(0, currentHeight - gTitlebarHeight);
+                //currentY -= gTitlebarHeight;
 
                 bwm_resize_command(
                     nativePort,
