@@ -19,6 +19,7 @@ extern NSMutableArray<NSValue *> *gKeyBindings;
 extern CGFloat gWindowGap;
 extern bool gDisableShadows;
 extern int gAnimationStyle;
+extern int gTitlebarHeight;
 extern bool gTitleOrIcon;
 extern bool gButtonPos;
 
@@ -141,6 +142,11 @@ bool LoadVisualSettings() {
     NSNumber *animStyle = visualsDict[@"animationstyle"];
     if (animStyle && [animStyle isKindOfClass:[NSNumber class]]) {
         gAnimationStyle = [animStyle intValue];
+    }
+
+    NSNumber *TitlebarHeight = visualsDict[@"titlebarheight"];
+    if (TitlebarHeight && [TitlebarHeight isKindOfClass:[NSNumber class]]) {
+        gTitlebarHeight = [TitlebarHeight intValue];
     }
 
     NSNumber *disableShadowsNumber = visualsDict[@"shadows"];

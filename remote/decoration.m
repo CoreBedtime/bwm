@@ -1,4 +1,5 @@
 #import <CoreFoundation/CoreFoundation.h>
+#include <objc/message.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
@@ -50,29 +51,44 @@ static void *TitlebarObserverKey = &TitlebarObserverKey;
     }
 }
 
-- (void)dealloc
-{
+- (void)dealloc {
     [self.window removeObserver:self forKeyPath:@"title"];
 }
 
 @end
 
+NSView *FindTitlebarDecorationView(NSView *view) {
+    if ([[view className] isEqualToString:@"_NSTitlebarDecorationView"]) {
+        return view;
+    }
+
+    for (NSView *subview in view.subviews) {
+        NSView *result = FindTitlebarDecorationView(subview);
+        if (result) return result;
+    }
+
+    return nil;
+}
+
+NSView *GetTitlebarDecorationViewFromWindow(NSWindow *window) {
+    return FindTitlebarDecorationView(window.contentView.superview);
+}
 
 void MakeTitlebar(
     NSWindow **outWindow,
     NSWindow *mainWindow,
     bool button_position,
     bool title_or_icon,
+    int height,
     NSImage * _Nullable backgroundImage
 ) {
     // Calculate frame for the titlebar window
     NSRect mainFrame = mainWindow.frame;
-    CGFloat titlebarHeight = 30.0;
     NSRect titlebarFrame = NSMakeRect(
         mainFrame.origin.x,
         NSMaxY(mainFrame),
         mainFrame.size.width,
-        titlebarHeight
+        height
     );
     
     // Initialize borderless window
@@ -83,6 +99,7 @@ void MakeTitlebar(
     [*outWindow setLevel:[mainWindow level]];
     [*outWindow setOpaque:NO];
     [*outWindow setIgnoresMouseEvents:NO];
+    [GetTitlebarDecorationViewFromWindow(mainWindow) removeFromSuperview];
 
     NSView *contentView = [*outWindow contentView];
     contentView.wantsLayer = YES;
@@ -112,36 +129,44 @@ void MakeTitlebar(
 
     CGFloat btnSize = 14.0;
     CGFloat buttonPadding = 6.0;
-    NSButton *prevBtn = nil;
+    CGFloat edgePadding = 10.0;
 
-    for (NSDictionary *spec in buttonSpecs) {
+    // Determine layout direction
+    BOOL alignRight = !button_position;
+    NSArray *orderedSpecs = alignRight ? [[buttonSpecs reverseObjectEnumerator] allObjects] : buttonSpecs;
+
+    __block NSButton *adjacentBtn = nil;
+
+    for (NSDictionary *spec in orderedSpecs) {
         NSImage *img = [NSImage imageWithSystemSymbolName:spec[@"symbolName"] accessibilityDescription:nil];
-        // ensure template mode so tints work
         img.template = YES;
 
         NSButton *btn = [NSButton buttonWithImage:img
-                                           target:mainWindow
-                                           action:NSSelectorFromString(spec[@"action"])];
-        btn.bezelStyle          = NSBezelStyleRegularSquare;
+                                        target:mainWindow
+                                        action:NSSelectorFromString(spec[@"action"])];
+        btn.bezelStyle = NSBezelStyleRegularSquare;
         btn.translatesAutoresizingMaskIntoConstraints = NO;
-        btn.bordered            = NO;
+        btn.bordered = NO;
         [contentView addSubview:btn];
 
-        // Layout: fixed size, vertical centering, horizontal stacking
-        NSMutableArray<NSLayoutConstraint*> *cs = [NSMutableArray array];
-        [cs addObject:[btn.widthAnchor constraintEqualToConstant:btnSize]];
-        [cs addObject:[btn.heightAnchor constraintEqualToConstant:btnSize]];
-        [cs addObject:[btn.centerYAnchor constraintEqualToAnchor:contentView.centerYAnchor]];
-        
-        if (prevBtn) {
-            [cs addObject:[btn.leadingAnchor constraintEqualToAnchor:prevBtn.trailingAnchor constant:buttonPadding]];
+        NSMutableArray<NSLayoutConstraint *> *constraints = [@[
+            [btn.widthAnchor constraintEqualToConstant:btnSize],
+            [btn.heightAnchor constraintEqualToConstant:btnSize],
+            [btn.centerYAnchor constraintEqualToAnchor:contentView.centerYAnchor]
+        ] mutableCopy];
+
+        if (adjacentBtn) {
+            [constraints addObject:alignRight
+                ? [btn.trailingAnchor constraintEqualToAnchor:adjacentBtn.leadingAnchor constant:-buttonPadding]
+                : [btn.leadingAnchor constraintEqualToAnchor:adjacentBtn.trailingAnchor constant:buttonPadding]];
         } else {
-            // first button pinned to left edge
-            [cs addObject:[btn.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor constant:10.0]];
+            [constraints addObject:alignRight
+                ? [btn.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor constant:-edgePadding]
+                : [btn.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor constant:edgePadding]];
         }
-        
-        [NSLayoutConstraint activateConstraints:cs];
-        prevBtn = btn;
+
+        [NSLayoutConstraint activateConstraints:constraints];
+        adjacentBtn = btn;
     }
 
     // Title OR app‑icon
@@ -203,3 +228,4 @@ void MakeTitlebar(
         OBJC_ASSOCIATION_RETAIN_NONATOMIC
     );
 }
+

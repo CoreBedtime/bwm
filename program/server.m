@@ -14,6 +14,7 @@ bool bwm_resize_command(mach_port_t remote_port,
                         CGFloat x, CGFloat y, 
                         CGFloat width, CGFloat height, 
                         int animate,
+                        int titlebarheight,
                         bool shadow,
                         bool button_position,
                         bool title_or_icon);
@@ -38,6 +39,7 @@ int gConnection = 0;
 CGFloat gMasterPaneRatio = 0.6;
 int gWindowShift = 0;
 
+int gTitlebarHeight = 33; 
 int gAnimationStyle = 2; 
 CGFloat gWindowGap = 50.0;
 bool gDisableShadows = true;
@@ -200,6 +202,7 @@ int ApplyTiling() {
                     currentX, currentY,
                     currentWidth, currentHeight,
                     gAnimationStyle, // animate -- add config
+                    gTitlebarHeight,
                     gDisableShadows,
                     gButtonPos,
                     gTitleOrIcon);

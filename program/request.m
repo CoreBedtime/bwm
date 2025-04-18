@@ -13,6 +13,7 @@ bool bwm_resize_command(mach_port_t remote_port,
                         CGFloat x, CGFloat y, 
                         CGFloat width, CGFloat height, 
                         int animate,
+                        int titlebarheight,
                         bool shadow,
                         bool button_position,
                         bool title_or_icon) {
@@ -34,6 +35,7 @@ bool bwm_resize_command(mach_port_t remote_port,
     msg.data.animate = animate;
     msg.data.shadow = shadow;
 
+    msg.data.gsd_titlebar_height = titlebarheight;
     msg.data.gsd_button_position = button_position;
     msg.data.gsd_title_or_icon = title_or_icon;
 

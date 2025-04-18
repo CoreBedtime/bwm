@@ -17,6 +17,7 @@ void MakeTitlebar(
     NSWindow *mainWindow,
     bool button_position,
     bool title_or_icon,
+    int height,
     NSImage * _Nullable backgroundImage
 );
 
@@ -71,6 +72,7 @@ float lerp(float a, float b, float t) {
             int animate = data->animate;
             bool shadow = data->shadow;
             
+            int titlebar_height = data->gsd_titlebar_height;
             bool title_or_icon = data->gsd_title_or_icon;
             bool orientation = data->gsd_button_position;
 
@@ -87,7 +89,7 @@ float lerp(float a, float b, float t) {
                     NSWindow *titlebarWindow = objc_getAssociatedObject(mainWindow, WindowTitlebarKey);
 
                     if (!titlebarWindow) {
-                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, NULL);
+                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, titlebar_height, NULL);
                     }
                 
                     NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
@@ -186,12 +188,11 @@ float lerp(float a, float b, float t) {
                     }
                     if (titlebarWindow) {
                         NSRect newMain = mainWindow.frame;
-                        CGFloat titlebarHeight = titlebarWindow.frame.size.height;
                         NSRect newTitlebarFrame = NSMakeRect(
                             newMain.origin.x,
                             NSMaxY(newMain),
                             newMain.size.width,
-                            titlebarHeight
+                            titlebar_height
                         );
                         [titlebarWindow setFrame:newTitlebarFrame display:YES];
                     }
