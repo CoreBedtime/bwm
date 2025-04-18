@@ -5,12 +5,6 @@ bwm is a fast feeling tiling window manager for macOS built with native APIs. It
 - ⚡ **Lightweight & native** — written in Objective-C using CoreGraphics and macOS mach APIs
 - 🪄 **Utilizes Ammonia** — bwm runs on Ammonia, a lightweight macOS tweak system designed to expose and control system behaviors. With this, bwm gains enhanced flexibility and tighter control over window and display behavior.
 
-
-----
-<video src='https://github.com/user-attachments/assets/6807419b-848a-476f-8cb2-062b576af2c9' width=180/>
-----
-
-
 # 🛠 Installation
 
 ### 🔧 Requirements
@@ -27,3 +21,8 @@ sh compile.sh
 ```
 
 🏗️ Note: bwm is still in its early days — expect sharp edges, missing features, and occasional bugs. Development is active, and the everything is evolving, so now’s a great time to get involved, suggest ideas, or help shape its future.
+
+VIDEO
+----
+<video src='https://github.com/user-attachments/assets/1fdb5359-623a-400f-9f47-87a839a7512f' width=180/>
+----
