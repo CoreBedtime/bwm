@@ -2,20 +2,25 @@
 #include <Foundation/Foundation.h>
 
 #pragma once
-const mach_msg_id_t BWM_RESIZE_MSG_ID = 1001; // Replace with your actual message ID
+// Message IDs
+const mach_msg_id_t BWM_TILE_MSG_ID = 1001;
+const mach_msg_id_t BWM_DECORATION_MSG_ID = 1002;
 
-enum AnimationType {AnimationNone, AnimationNormal, AnimationBounce};
+enum AnimationType { AnimationNone, AnimationNormal, AnimationBounce };
 
-// Define the expected structure of the message data following the header
 typedef struct {
     uint32_t _wid;
+    CGFloat x, y;
+    CGFloat width, height;
     int animate;
     CGFloat animate_force;
-    bool shadow;
+} TileCommandData;
+
+typedef struct {
+    uint32_t _wid;
     int gsd_titlebar_height;
     uint32_t gsd_titlebar_col;
     bool gsd_title_or_icon;
     bool gsd_button_position;
-    CGFloat x, y;
-    CGFloat width, height;
-} ResizeCommandData; // Data part of the message
+    bool shadow;
+} DecorationCommandData;

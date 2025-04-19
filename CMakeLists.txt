@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-
+add_compile_options(-O3)
 project(libBWM)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)

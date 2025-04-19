@@ -64,47 +64,24 @@ float lerp(float a, float b, float t) {
     mach_msg_header_t *msg_header = (mach_msg_header_t *)msg;
     NSLog(@"[!] Received Mach message with ID: %d, size: %u", msg_header->msgh_id, msg_header->msgh_size);
 
-    if (msg_header->msgh_id == BWM_RESIZE_MSG_ID) {
-        size_t expectedSize = sizeof(mach_msg_header_t) + sizeof(ResizeCommandData);
+    switch (msg_header->msgh_id) {
+        case BWM_TILE_MSG_ID: {
+            size_t expectedSize = sizeof(mach_msg_header_t) + sizeof(TileCommandData);
+            if (msg_header->msgh_size >= expectedSize) {
+                TileCommandData *data = (TileCommandData *)((uint8_t *)msg_header + sizeof(mach_msg_header_t));
+                uint32_t windowid = data->_wid;
 
-        if (msg_header->msgh_size >= expectedSize) {
-            ResizeCommandData *data = (ResizeCommandData *)((uint8_t *)msg_header + sizeof(mach_msg_header_t));
-            uint32_t windowid = data->_wid;
-            int animate = data->animate;
-            bool shadow = data->shadow;
-            
-            int titlebar_height = data->gsd_titlebar_height;
-            uint32_t titlebar_color = data->gsd_titlebar_col;
-            bool title_or_icon = data->gsd_title_or_icon;
-            bool orientation = data->gsd_button_position;
+                CGFloat newx = data->x;
+                CGFloat newy = data->y;
+                CGFloat newWidth = data->width;
+                CGFloat newHeight = data->height;
+                int animate = data->animate;
+                CGFloat force = data->animate_force;
 
-            CGFloat newWidth = data->width;
-            CGFloat newHeight = data->height;
-            CGFloat newx = data->x;
-            CGFloat newy = data->y;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
+                    if (!mainWindow || ([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) return;
 
-            CGFloat force = data->animate_force;
-
-            dispatch_async(dispatch_get_main_queue(), ^{
-                NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
-                if (mainWindow && !([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) {
-                    NSWindow *titlebarWindow = objc_getAssociatedObject(mainWindow, WindowTitlebarKey);
-
-                    if (!titlebarWindow) {
-                        MakeTitlebar(&titlebarWindow, mainWindow, orientation, title_or_icon, titlebar_height, CreateColorSwatchFromARGB(titlebar_color));
-                    }
-                
-                    NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
-                    NSButton *minimizeButton = [mainWindow standardWindowButton:NSWindowMiniaturizeButton];
-                    NSButton *zoomButton = [mainWindow standardWindowButton:NSWindowZoomButton];
-                    if (closeButton) [closeButton setHidden:YES];
-                    if (minimizeButton) [minimizeButton setHidden:YES];
-                    if (zoomButton) [zoomButton setHidden:YES];
-                    
-
-                    [mainWindow setHasShadow:shadow];
-
-                    NSRect currentFrame = mainWindow.frame;
                     NSRect targetFrame = NSMakeRect(newx, newy, newWidth, newHeight);
 
                     switch (animate) {
@@ -112,20 +89,19 @@ float lerp(float a, float b, float t) {
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                             [mainWindow setFrame:targetFrame display:NO animate:NO];
                             break;
-                    
-                        case AnimationNormal:
-                            [mainWindow setFrame:NSMakeRect(lerp(mainWindow.frame.origin.x, newx, 0.3), 
-                                                            lerp(mainWindow.frame.origin.y, newy, 0.3), 
-                                                            lerp(mainWindow.frame.size.width, newWidth, 0.3), 
-                                                            lerp(mainWindow.frame.size.height, newHeight, 0.3)) display:YES animate:NO];
 
+                        case AnimationNormal:
+                            [mainWindow setFrame:NSMakeRect(
+                                lerp(mainWindow.frame.origin.x, newx, 0.3),
+                                lerp(mainWindow.frame.origin.y, newy, 0.3),
+                                lerp(mainWindow.frame.size.width, newWidth, 0.3),
+                                lerp(mainWindow.frame.size.height, newHeight, 0.3)) display:YES animate:NO];
                             objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                             break;
 
                         case AnimationBounce: { 
                             WindowAnimationState *state = objc_getAssociatedObject(mainWindow, WindowAnimationStateKey);
                             if (!state) {
-                                // ... (initialization code as before) ...
                                 state = [[WindowAnimationState alloc] init];
                                 NSRect currentFrame = mainWindow.frame;
                                 state.currentX = currentFrame.origin.x;
@@ -135,16 +111,16 @@ float lerp(float a, float b, float t) {
                                 objc_setAssociatedObject(mainWindow, WindowAnimationStateKey, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                                 NSLog(@"[!] Initialized bounce state for window ID %u", windowid);
                             }
- 
-                            NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate]; // Or CACurrentMediaTime()
+
+                            NSTimeInterval currentTime = [NSDate timeIntervalSinceReferenceDate];
                             NSTimeInterval deltaTime = (state.lastUpdateTime > 0) ? (currentTime - state.lastUpdateTime) : (1.0 / 60.0);
                             state.lastUpdateTime = currentTime;
- 
+
                             CGFloat localCurrentX = state.currentX;
                             CGFloat localVelocityX = state.velocityX;
                             updateSpring(&localCurrentX, &localVelocityX, newx, force, kSpringFriction, deltaTime);
-                            state.currentX = localCurrentX; // Update property from local variable
-                            state.velocityX = localVelocityX; // Update property from local variable
+                            state.currentX = localCurrentX;
+                            state.velocityX = localVelocityX;
 
                             CGFloat localCurrentY = state.currentY;
                             CGFloat localVelocityY = state.velocityY;
@@ -155,25 +131,20 @@ float lerp(float a, float b, float t) {
                             CGFloat localCurrentWidth = state.currentWidth;
                             CGFloat localVelocityWidth = state.velocityWidth;
                             updateSpring(&localCurrentWidth, &localVelocityWidth, newWidth, force, kSpringFriction, deltaTime);
- 
                             state.currentWidth = localCurrentWidth;
                             state.velocityWidth = localVelocityWidth;
-
 
                             CGFloat localCurrentHeight = state.currentHeight;
                             CGFloat localVelocityHeight = state.velocityHeight;
                             updateSpring(&localCurrentHeight, &localVelocityHeight, newHeight, force, kSpringFriction, deltaTime);
- 
                             state.currentHeight = localCurrentHeight;
                             state.velocityHeight = localVelocityHeight;
- 
+
                             if (state.currentWidth < 10.0) state.currentWidth = 10.0;
                             if (state.currentHeight < 10.0) state.currentHeight = 10.0;
 
-                            // Apply the calculated frame
                             NSRect newFrame = NSMakeRect(state.currentX, state.currentY, state.currentWidth, state.currentHeight);
                             [mainWindow setFrame:newFrame display:NO animate:NO];
-
                             break;
                         }
 
@@ -182,23 +153,61 @@ float lerp(float a, float b, float t) {
                             [mainWindow setFrame:targetFrame display:NO animate:NO];
                             break;
                     }
-                    if (titlebarWindow) {
-                        NSRect newMain = mainWindow.frame;
-                        NSRect newTitlebarFrame = NSMakeRect(
-                            newMain.origin.x,
-                            NSMaxY(newMain),
-                            newMain.size.width,
-                            titlebar_height
-                        );
-                        [titlebarWindow setFrame:newTitlebarFrame display:YES];
-                    }
-                }
-            });
-        } else {
-            NSLog(@"[!] Error: Received resize message with unexpected size: %u (expected at least %zu)", msg_header->msgh_size, expectedSize);
+                });
+            }
+            break;
         }
-    } else {
-        NSLog(@"[!] Warning: Received message with unhandled ID: %d", msg_header->msgh_id);
+
+        case BWM_DECORATION_MSG_ID: {
+            size_t expectedSize = sizeof(mach_msg_header_t) + sizeof(DecorationCommandData);
+            if (msg_header->msgh_size >= expectedSize) {
+                DecorationCommandData *in = (DecorationCommandData *)((uint8_t *)msg_header + sizeof(mach_msg_header_t));
+ 
+                DecorationCommandData data = *in;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    uint32_t windowid = data._wid;
+                    NSWindow *mainWindow = [[NSApplication sharedApplication] windowWithWindowNumber:windowid];
+                    if (!mainWindow || ([mainWindow styleMask] & NSWindowStyleMaskFullScreen)) return;
+
+                    NSWindow *titlebarWindow = objc_getAssociatedObject(mainWindow, WindowTitlebarKey);
+                    if (!titlebarWindow) {
+                        // First-time setup
+                        MakeTitlebar(&titlebarWindow, mainWindow,
+                                    data.gsd_button_position,
+                                    data.gsd_title_or_icon,
+                                    data.gsd_titlebar_height,
+                                    CreateColorSwatchFromARGB(data.gsd_titlebar_col));
+
+                        objc_setAssociatedObject(mainWindow, WindowTitlebarKey, titlebarWindow, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                    } else {
+                        // Update existing titlebar frame and background
+                        NSRect mainFrame = mainWindow.frame;
+                        NSRect titlebarFrame = NSMakeRect(
+                            mainFrame.origin.x,
+                            NSMaxY(mainFrame),
+                            mainFrame.size.width,
+                            data.gsd_titlebar_height
+                        );
+                        [titlebarWindow setFrame:titlebarFrame display:YES]; 
+                    }
+
+                    [mainWindow setHasShadow:data.shadow];
+
+                    NSButton *closeButton = [mainWindow standardWindowButton:NSWindowCloseButton];
+                    NSButton *minimizeButton = [mainWindow standardWindowButton:NSWindowMiniaturizeButton];
+                    NSButton *zoomButton = [mainWindow standardWindowButton:NSWindowZoomButton];
+                    if (closeButton) [closeButton setHidden:YES];
+                    if (minimizeButton) [minimizeButton setHidden:YES];
+                    if (zoomButton) [zoomButton setHidden:YES];
+                });
+
+            }
+            break;
+        }
+
+        default:
+            NSLog(@"[!] Warning: Received message with unhandled ID: %d", msg_header->msgh_id);
+            break;
     }
 }
 

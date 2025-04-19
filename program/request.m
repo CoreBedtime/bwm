@@ -9,52 +9,47 @@
 
 #include "../bwm.h"
 
-bool bwm_resize_command(mach_port_t remote_port, 
-                        uint32_t wid, 
-                        CGFloat x, CGFloat y, 
-                        CGFloat width, CGFloat height, 
-                        CGFloat animate_force,
-                        int animate,
-                        int titlebarheight,
-                        uint32_t titlebar_color,
-                        bool shadow,
-                        bool button_position,
-                        bool title_or_icon) {
-    kern_return_t kr;
+bool send_tile_command(mach_port_t port, uint32_t wid, CGFloat x, CGFloat y, CGFloat w, CGFloat h, int animate, CGFloat force) {
     struct {
         mach_msg_header_t header;
-        ResizeCommandData data;
+        TileCommandData data;
     } msg;
 
     msg.header.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0);
     msg.header.msgh_size = sizeof(msg);
-    msg.header.msgh_remote_port = remote_port;
+    msg.header.msgh_remote_port = port;
     msg.header.msgh_local_port = MACH_PORT_NULL;
-    msg.header.msgh_voucher_port = MACH_PORT_NULL;
-    
-    msg.header.msgh_id = BWM_RESIZE_MSG_ID;
+    msg.header.msgh_id = BWM_TILE_MSG_ID;
 
     msg.data._wid = wid;
-
-    msg.data.animate_force = animate_force;
-    msg.data.animate = animate;
-    msg.data.shadow = shadow;
-
-    msg.data.gsd_titlebar_height = titlebarheight;
-    msg.data.gsd_button_position = button_position;
-    msg.data.gsd_title_or_icon = title_or_icon;
-    msg.data.gsd_titlebar_col = titlebar_color;
-
-    msg.data.width = width;
-    msg.data.height = height;
     msg.data.x = x;
     msg.data.y = y;
+    msg.data.width = w;
+    msg.data.height = h;
+    msg.data.animate = animate;
+    msg.data.animate_force = force;
 
-    kr = mach_msg(&msg.header, MACH_SEND_MSG, msg.header.msgh_size, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+    return mach_msg(&msg.header, MACH_SEND_MSG, msg.header.msgh_size, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL) == KERN_SUCCESS;
+}
 
-    if (kr != KERN_SUCCESS) {
-        NSLog(@"[!] Error sending Mach message to port %d: %s (kern_return_t: %d)", remote_port, mach_error_string(kr), kr);
-        return false;
-    }
-    return true;
+bool send_decoration_command(mach_port_t port, uint32_t wid, int height, uint32_t color, bool icon, bool button_position, bool shadow) {
+    struct {
+        mach_msg_header_t header;
+        DecorationCommandData data;
+    } msg;
+
+    msg.header.msgh_bits = MACH_MSGH_BITS(MACH_MSG_TYPE_COPY_SEND, 0);
+    msg.header.msgh_size = sizeof(msg);
+    msg.header.msgh_remote_port = port;
+    msg.header.msgh_local_port = MACH_PORT_NULL;
+    msg.header.msgh_id = BWM_DECORATION_MSG_ID;
+
+    msg.data._wid = wid;
+    msg.data.gsd_titlebar_height = height;
+    msg.data.gsd_titlebar_col = color;
+    msg.data.gsd_title_or_icon = icon;
+    msg.data.gsd_button_position = button_position;
+    msg.data.shadow = shadow;
+
+    return mach_msg(&msg.header, MACH_SEND_MSG, msg.header.msgh_size, 0, MACH_PORT_NULL, MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL) == KERN_SUCCESS;
 }

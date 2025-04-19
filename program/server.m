@@ -9,19 +9,24 @@
 
 // Forward declarations
 extern
-bool bwm_resize_command(mach_port_t remote_port, 
-                        uint32_t wid, 
-                        CGFloat x, CGFloat y, 
-                        CGFloat width, CGFloat height, 
-                        CGFloat animate_force,
-                        int animate,
-                        int titlebarheight,
-                        uint32_t titlebar_color,
-                        bool shadow,
-                        bool button_position,
-                        bool title_or_icon) ;
+bool send_tile_command(mach_port_t port, 
+                       uint32_t wid, 
+                       CGFloat x, CGFloat y, 
+                       CGFloat w, CGFloat h, 
+                       int animate, CGFloat force);
+
+extern
+bool send_decoration_command(mach_port_t port, 
+                             uint32_t wid, 
+                             int height, 
+                             uint32_t color, 
+                             bool icon, 
+                             bool button_position, 
+                             bool shadow);
+
 
 extern NSArray<NSDictionary *> *FilteredWindowList(unsigned long long current_sapce);
+extern NSArray<NSDictionary *> *SemiFilteredWindowList(unsigned long long current_space);
 NSArray * LoadKeyBindings();
 extern bool LoadVisualSettings();
 
@@ -101,9 +106,14 @@ int ApplyTiling() {
             NSLog(@"[+] Processing screen: %@ (using point: %@)", [screen localizedName] ?: @"Unknown Screen", NSStringFromPoint(pointOnScreen));
 
             NSArray<NSDictionary *> *tileableWindows = FilteredWindowList((unsigned long long)[screen _currentSpace]);
+            NSArray<NSDictionary *> *decorableWindows = SemiFilteredWindowList((unsigned long long)[screen _currentSpace]);
 
             if (!tileableWindows) {
                 NSLog(@"[!] Warning: FilteredWindowListAtPoint returned nil for screen %@. Skipping.", [screen localizedName] ?: @"Unknown Screen");
+                continue;
+            }
+            if (!decorableWindows) {
+                NSLog(@"[!] Warning: SemiFilteredWindowList returned nil for screen %@. Skipping.", [screen localizedName] ?: @"Unknown Screen");
                 continue;
             }
 
@@ -218,25 +228,48 @@ int ApplyTiling() {
 
                 currentWidth = MAX(0, currentWidth);
                 currentHeight = MAX(0, currentHeight - gTitlebarHeight);
-                //currentY -= gTitlebarHeight;
 
-                bwm_resize_command(
+                send_tile_command(
                     nativePort,
                     window_number,
                     currentX, currentY,
                     currentWidth, currentHeight,
-                    gWindowForce,
                     gAnimationStyle,
+                    gWindowForce);
+
+            }
+            for (CFIndex i = 0; i < [decorableWindows count]; ++i) {
+                NSDictionary *tileInfo = decorableWindows[i];
+                pid_t pid = [tileInfo[@"pid"] intValue];
+                uint32_t window_number = [tileInfo[@"wid"] unsignedIntValue];
+
+                NSString *expectedPortName = [NSString stringWithFormat:@"com.bwmport.%d", pid];
+                mach_port_t nativePort = MACH_PORT_NULL;
+                NSPort *remoteServicePort = [[NSMachBootstrapServer sharedInstance] portForName:expectedPortName];
+
+                if (remoteServicePort && [remoteServicePort isKindOfClass:[NSMachPort class]]) {
+                    nativePort = [(NSMachPort *)remoteServicePort machPort];
+                }
+
+                if (nativePort == MACH_PORT_NULL || nativePort == MACH_PORT_DEAD) {
+                    NSLog(@"[!] Warning: Could not find or Mach port for PID %@ (WID %u) on screen %@ is invalid/dead using name '%@'. Skipping.", @(pid), window_number, [screen localizedName] ?: @"Unknown Screen", expectedPortName);
+                    continue;
+                }
+
+                send_decoration_command(
+                    nativePort,
+                    window_number,
                     gTitlebarHeight,
                     gTitlebarColor,
-                    gDisableShadows,
+                    gTitleOrIcon,
                     gButtonPos,
-                    gTitleOrIcon);
+                    gDisableShadows);
             }
         }
     }
     return 0;
 }
+
 
 void PerformActionString(NSString * action, bool * modeChanged, TilingMode * targetMode) {
     if ([action isEqualToString:@"reload"]) {
