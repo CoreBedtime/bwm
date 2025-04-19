@@ -1,5 +1,5 @@
 # **bwm** 
-bwm is a fast feeling tiling window manager for macOS built with native APIs. It’s designed for everyone who want full control over how their windows behave!
+bwm is a fast feeling tiling window manager for macOS built with native APIs. It’s designed for everyone who wants control over how their windows behave!
 
 - 🔲 **Tiling layouts** — horizontal, vertical, and master-stack modes
 - ⚡ **Lightweight & native** — written in Objective-C using CoreGraphics and macOS mach APIs
@@ -21,11 +21,6 @@ sh compile.sh
 ```
 
 🏗️ Note: bwm is still in its early days — expect sharp edges, missing features, and occasional bugs. Development is active, and the everything is evolving, so now’s a great time to get involved, suggest ideas, or help shape its future.
-
-VIDEO
-----
-<video src='https://github.com/user-attachments/assets/1fdb5359-623a-400f-9f47-87a839a7512f' width=180/>
-----
 
 VIDEO
 ----
